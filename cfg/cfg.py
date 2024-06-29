@@ -1,8 +1,9 @@
 """
-This module defines three commands:
-(1) blocks: Form the basic blocks and add a `blocks` section for each of the functions in the program.
-(2) cfg: Construct the control-flow graph and add a `cfg` section for each of the functions in the program.
-(3) graph-cfg: Represent the cfg in GraphViz format.
+This module defines three commands for processing control-flow in programs:
+
+1. `blocks`: Forms the basic blocks and adds a `blocks` section for each function in the program.
+2. `cfg`: Constructs the control-flow graph and adds a `cfg` section for each function in the program.
+3. `graph-cfg`: Represents the control-flow graph in GraphViz format.
 """
 
 __version__ = "0.1.0"
@@ -11,22 +12,29 @@ import json
 import sys
 import typing
 from collections import OrderedDict
-from typing import Any, Dict, Generator, Iterable, List, Mapping
+from typing import Any, Dict, Generator, Iterable, List, Mapping, TypeAlias
 
-Block = List[Mapping[str, Any]]
+Instr: TypeAlias = Mapping[str, Any]
+Block: TypeAlias = List[Instr]
 
-# NOTE: `call` is not considered as a terminator because it transfers control back
+# NOTE: `call` is not considered a terminator because it transfers control back
 # to the next instruction.
 TERMINATORS = "jmp", "br", "ret"
 
 
-def form_blocks(body: Iterable[Mapping[str, Any]]) -> Generator[Block, None, None]:
-    """Converts a list of instructions into a list of basic blocks
+def form_blocks(body: Iterable[Instr]) -> Generator[Block, None, None]:
+    """Converts a list of instructions into a list of basic blocks.
 
     For blocks that have a label at the beginning, such label will be the first instruction inside the block.
+
+    Args:
+        body: An iterable of instructions.
+
+    Yields:
+        Block of instructions.
     """
 
-    def is_label(instr: Mapping[str, Any]) -> bool:
+    def is_label(instr: Instr) -> bool:
         return "op" not in instr
 
     cur_block: Block = []
@@ -49,10 +57,16 @@ def form_blocks(body: Iterable[Mapping[str, Any]]) -> Generator[Block, None, Non
 
 
 def name_blocks(blocks: Iterable[Block]) -> typing.OrderedDict[str, Block]:
-    """
-    A block may or may not be started with a label. For those without a label,
-    we'll create a name for it; for those with a label, the label is used as
-    its name. Label will then be removed since we'll refer to the name instead.
+    """Assigns names to blocks. A block may or may not start with a label.
+
+    For those without a label, a name will be created; for those with a label, the label is used
+    as its name. The label is then removed since the name will be used for reference.
+
+    Args:
+        blocks: An iterable of blocks.
+
+    Returns:
+        An ordered dictionary mapping block names to blocks.
     """
     # Preserve the ordering of blocks for CFG construction.
     name_to_block = OrderedDict()
@@ -71,8 +85,15 @@ def name_blocks(blocks: Iterable[Block]) -> typing.OrderedDict[str, Block]:
     return name_to_block
 
 
-def get_cfg(name_to_block: typing.OrderedDict[str, Block]) -> Dict[str, Block]:
-    """Produces a mapping from block name to its successor block names."""
+def get_cfg(name_to_block: typing.OrderedDict[str, Block]) -> Dict[str, List[str]]:
+    """Produces a mapping from block names to their successor block names.
+
+    Args:
+        name_to_block: An ordered dictionary mapping block names to blocks.
+
+    Returns:
+        A dictionary mapping block names to lists of successor block names.
+    """
     successors = {}
     for i, (name, block) in enumerate(name_to_block.items()):
         last = block[-1]
@@ -90,7 +111,13 @@ def get_cfg(name_to_block: typing.OrderedDict[str, Block]) -> Dict[str, Block]:
     return successors
 
 
-def graph(func_name: str, cfg: Dict[str, Block]) -> None:
+def graph(func_name: str, cfg: Dict[str, List[str]]) -> None:
+    """Represents the control-flow graph in GraphViz format.
+
+    Args:
+        func_name: The name of the function.
+        cfg: The control-flow graph as a dictionary mapping block names to lists of successor block names.
+    """
     print(f"digraph {func_name} {{")
     for block_name in cfg:
         print(f'  "{block_name}";')
@@ -104,6 +131,10 @@ def graph(func_name: str, cfg: Dict[str, Block]) -> None:
 
 
 def blocks() -> None:
+    """Forms basic blocks for each function in the program and add a `blocks` section.
+
+    Reads from stdin and writes to stdout.
+    """
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
     for func in prog["functions"]:
@@ -113,6 +144,10 @@ def blocks() -> None:
 
 
 def cfg() -> None:
+    """Constructs the control-flow graph for each function in the program and add a `cfg` section.
+
+    Reads from stdin and writes to stdout.
+    """
     prog: Dict[str, List[typing.OrderedDict[str, Any]]] = json.load(
         sys.stdin, object_pairs_hook=OrderedDict
     )
@@ -130,6 +165,10 @@ def cfg() -> None:
 
 
 def graph_cfg() -> None:
+    """Represents the control-flow graph in GraphViz format for each function in the program.
+
+    Reads from stdin and writes to stdout.
+    """
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
     for func in prog["functions"]:
