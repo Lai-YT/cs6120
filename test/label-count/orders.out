@@ -1,0 +1,7 @@
+Label Count:
+	@abs: 2
+	@mod: 0
+	@gcd: 3
+	@lcm: 3
+	@orders: 6
+	@main: 0
