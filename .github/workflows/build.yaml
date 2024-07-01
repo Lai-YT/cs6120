@@ -35,6 +35,9 @@ jobs:
       - name: Install Python tools
         run: cd bril-txt ; flit install --symlink
 
+      - name: Install Label Count
+        run: cd label-count ; flit install --symlink
+
       - name: Install Turnt
         # run: pip install turnt  # Use instead if pip turnt version >= 1.7
         uses: actions/checkout@v4
