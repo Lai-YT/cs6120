@@ -1,0 +1,4 @@
+Label Count:
+	@main: 5
+	@is_single_digit: 0
+	@peel_last_digit: 0
