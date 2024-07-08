@@ -53,7 +53,8 @@ def form_blocks(body: Iterable[Instr]) -> Generator[Block, None, None]:
                 yield cur_block
             cur_block = [instr]
     # tail case
-    yield cur_block
+    if cur_block:
+        yield cur_block
 
 
 def name_blocks(blocks: Iterable[Block]) -> typing.OrderedDict[str, Block]:
