@@ -12,9 +12,9 @@ import json
 import sys
 import typing
 from collections import OrderedDict
-from typing import Any, Dict, Generator, Iterable, List, Mapping, TypeAlias
+from typing import Any, Dict, Generator, Iterable, List, MutableMapping, TypeAlias
 
-Instr: TypeAlias = Mapping[str, Any]
+Instr: TypeAlias = MutableMapping[str, Any]
 Block: TypeAlias = List[Instr]
 
 # NOTE: `call` is not considered a terminator because it transfers control back
