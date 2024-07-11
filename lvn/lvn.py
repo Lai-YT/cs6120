@@ -22,6 +22,11 @@ def rename_args_between(instrs: List[cfg.Instr], old_name: str, new_name: str) -
                 args[i] = new_name
 
 
+def has_side_effect(op: str) -> bool:
+    """Returns whether the `op` may have side effect."""
+    return op == "call"
+
+
 def lvn() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
@@ -78,7 +83,7 @@ def lvn() -> None:
                         val = Value(*sorted(row_nums, key=lambda x: str(x)))
                     val = Value(op, row_nums)
 
-                if val in val2var:
+                if val in val2var and not has_side_effect(val.op):
                     # The value has been computed before;
                     # map it to the canonical variable without adding a new row.
                     var, the_row_num = val2var[val]
