@@ -28,6 +28,11 @@ def has_side_effect(op: str) -> bool:
     return op == "call"
 
 
+def is_commutative(op: str) -> bool:
+    # No short circuit for "add" and "or" at this level.
+    return op in ("add", "mul", "eq", "add", "or")
+
+
 def lvn() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
@@ -79,7 +84,7 @@ def lvn() -> None:
                     row_nums: Tuple[Union[str, int], ...] = tuple(
                         var2num.get(arg, arg) for arg in instr["args"]
                     )
-                    if op == "add":
+                    if is_commutative(op):
                         # Commutativity; sort the args to canonicalize.
                         # NOTE: Row numbers can be str if is defined in other basic block.
                         val = Value(*sorted(row_nums, key=lambda x: str(x)))
