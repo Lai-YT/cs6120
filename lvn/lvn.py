@@ -1,5 +1,6 @@
-"""
-This module defines the local value numbering.
+"""This module defines the basic local value numbering.
+
+Constant propagation and folding are not supported.
 """
 
 __version__ = "0.1.0"
