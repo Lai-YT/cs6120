@@ -55,11 +55,12 @@ def lvn() -> None:
             lvn_number = 0
 
             for i, instr in enumerate(block):
-                if "label" in instr or ("dest" not in instr and "args" not in instr):
+                if "label" in instr:
                     continue
 
                 if "dest" not in instr:
                     # Not an assignment.
+                    replace_args_with_canonical(instr)
                     continue
 
                 if instr["op"] == "const":
