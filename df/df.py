@@ -18,6 +18,7 @@ from typing import (
     TypeVar,
 )
 
+import cprop
 import defined
 
 from cfg import Block, Instr, form_blocks, get_cfg, name_blocks
@@ -100,9 +101,19 @@ def union(iterable: Iterable[Set[T]]) -> Set[T]:
     return set().union(*iterable)
 
 
+def intersection(iterable: Iterable[Set[T]]) -> Set[T]:
+    it = iter(iterable)
+    try:
+        first = next(it)
+        return first.intersection(*it)
+    except StopIteration:
+        # The iterable contains no sets.
+        return set()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(sys.argv[0])
-    parser.add_argument("mode", choices=["defined"])
+    parser.add_argument("mode", choices=["defined", "cprop"])
     args = parser.parse_args()
 
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
@@ -116,3 +127,16 @@ if __name__ == "__main__":
                 print(*sorted(ins[block_name]), sep=", ")
                 print("  out: ", end="")
                 print(*sorted(outs[block_name]), sep=", ")
+    elif args.mode == "cprop":
+        for func in prog["functions"]:
+            ins, outs = solve(func["instrs"], set(), cprop.out, intersection)
+            for block_name in ins.keys():
+                print(f"{block_name}:")
+                print(
+                    "  in: ",
+                    ", ".join(f"{name}: {val}" for name, val in ins[block_name]),
+                )
+                print(
+                    "  out:",
+                    ", ".join(f"{name}: {val}" for name, val in outs[block_name]),
+                )
