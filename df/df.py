@@ -146,7 +146,7 @@ class DataFlowSolver:
             block_name = worklist.popleft()
             block = blocks[block_name]
 
-            in_ = merge(outs[pred] for pred in name2predecessors[block_name])
+            in_ = merge([outs[pred] for pred in name2predecessors[block_name]])
             out = transfer(block, in_)
 
             # Until the basic block converges.
