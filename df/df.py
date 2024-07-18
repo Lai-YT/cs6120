@@ -132,8 +132,7 @@ class DataFlowSolver:
             entry_name = list(blocks.keys())[0]
 
         # in[entry] = init
-        ins: Dict[str, Set[T]] = {n: set() for n in blocks}
-        ins[entry_name] = deepcopy(init)
+        ins: Dict[str, Set[T]] = {entry_name: deepcopy(init)}
         # out[*] = init
         outs: Dict[str, Set[T]] = {n: deepcopy(init) for n in blocks}
 
