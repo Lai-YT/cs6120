@@ -46,11 +46,11 @@ def find_predecessors(name2successors: Dict[str, List[str]]) -> Dict[str, List[s
 T = TypeVar("T")
 
 
-def union(iterable: Iterable[Set[T]]) -> Set[T]:
+def set_union(iterable: Iterable[Set[T]]) -> Set[T]:
     return set().union(*iterable)
 
 
-def intersection(iterable: Iterable[Set[T]]) -> Set[T]:
+def set_intersection(iterable: Iterable[Set[T]]) -> Set[T]:
     it = iter(iterable)
     try:
         first = next(it)
@@ -58,6 +58,23 @@ def intersection(iterable: Iterable[Set[T]]) -> Set[T]:
     except StopIteration:
         # The iterable contains no sets.
         return set()
+
+
+def dict_intersection(dicts: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Note:
+        The key-value pairs have to be the same to be considered as intersected.
+    """
+    # Converts the dictionaries into sets of tuples to perform intersections.
+    intersections: Set[Tuple[str, Any]] = set_intersection(
+        set((k, v) for k, v in d.items()) for d in dicts
+    )
+    res: Dict[str, Any] = {}
+    for dict_ in dicts:
+        for k, v in dict_.items():
+            if (k, v) in intersections:
+                res[k] = v
+    return res
 
 
 class Analysis(Enum):
@@ -78,7 +95,6 @@ class Flow(Enum):
 
 
 class DataFlowSolver:
-
     def __init__(self, instrs: List[Instr], analysis: Analysis) -> None:
         """
         Note:
@@ -87,15 +103,19 @@ class DataFlowSolver:
         self._instrs = instrs
         self._analysis = analysis
 
-    def solve(self) -> Tuple[Dict[str, Set], Dict[str, Set]]:
+    def solve(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if self._analysis is Analysis.DEFINED:
-            return self._solve(func["instrs"], Flow.FORWARD, set(), defined.out, union)
+            return self._solve(
+                func["instrs"], Flow.FORWARD, set(), defined.out, set_union
+            )
         elif self._analysis is Analysis.CPROP:
             return self._solve(
-                func["instrs"], Flow.FORWARD, set(), cprop.out, intersection
+                func["instrs"], Flow.FORWARD, dict(), cprop.out, dict_intersection
             )
         elif self._analysis is Analysis.LIVE:
-            return self._solve(func["instrs"], Flow.BACKWARD, set(), live.in_, union)
+            return self._solve(
+                func["instrs"], Flow.BACKWARD, set(), live.in_, set_union
+            )
         else:
             raise ValueError(f"unknonw analysis {self._analysis}")
 
@@ -103,16 +123,16 @@ class DataFlowSolver:
         self,
         instrs: List[Instr],
         flow: Flow,
-        init: Set[T],
-        transfer: Callable[[Block, Set[T]], Set[T]],
-        merge: Callable[[Iterable[Set[T]]], Set[T]],
-    ) -> Tuple[Dict[str, Set[T]], Dict[str, Set[T]]]:
+        init: T,
+        transfer: Callable[[Block, T], T],
+        merge: Callable[[Iterable[T]], T],
+    ) -> Tuple[Dict[str, T], Dict[str, T]]:
         """Solves the data flow analysis.
 
         Args:
             instrs: A list of instructions.
             flow: The flow direction of the analysis.
-            init: The initial set of data flow values. Will be copied with `deepcopy`.
+            init: The initial set (doesn't necessarily have to be a `set`) of data flow values. Will be copied with `deepcopy`.
             transfer: A function to compute the OUT set from the IN set for a block.
             merge: A function to merge multiple IN sets.
 
@@ -132,9 +152,9 @@ class DataFlowSolver:
             entry_name = list(blocks.keys())[0]
 
         # in[entry] = init
-        ins: Dict[str, Set[T]] = {entry_name: deepcopy(init)}
+        ins: Dict[str, T] = {entry_name: deepcopy(init)}
         # out[*] = init
-        outs: Dict[str, Set[T]] = {n: deepcopy(init) for n in blocks}
+        outs: Dict[str, T] = {n: deepcopy(init) for n in blocks}
 
         if flow is Flow.BACKWARD:
             name2successors, name2predecessors = name2predecessors, name2successors
@@ -189,9 +209,13 @@ if __name__ == "__main__":
                 print(f"{block_name}:")
                 print(
                     "  in: ",
-                    ", ".join(f"{name}: {val}" for name, val in ins[block_name]),
+                    ", ".join(
+                        f"{name}: {val}" for name, val in ins[block_name].items()
+                    ),
                 )
                 print(
                     "  out:",
-                    ", ".join(f"{name}: {val}" for name, val in outs[block_name]),
+                    ", ".join(
+                        f"{name}: {val}" for name, val in outs[block_name].items()
+                    ),
                 )
