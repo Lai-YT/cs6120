@@ -21,6 +21,7 @@ from typing import (
 
 import cprop
 import defined
+import live
 
 from cfg import Block, Instr, form_blocks, get_cfg, name_blocks
 
@@ -64,29 +65,44 @@ class Analysis(Enum):
     DEFINED = auto()
     # Constant Propagation.
     CPROP = auto()
+    # Live Variables.
+    LIVE = auto()
 
     def __str__(self) -> str:
         return self.name.lower()
 
 
+class Flow(Enum):
+    FORWARD = auto()
+    BACKWARD = auto()
+
+
 class DataFlowSolver:
 
     def __init__(self, instrs: List[Instr], analysis: Analysis) -> None:
+        """
+        Note:
+            The DataFlowSolver knows the flow of each analyses.
+        """
         self._instrs = instrs
         self._analysis = analysis
 
     def solve(self) -> Tuple[Dict[str, Set], Dict[str, Set]]:
         if self._analysis is Analysis.DEFINED:
-            return self._solve(func["instrs"], set(), defined.out, union)
+            return self._solve(func["instrs"], Flow.FORWARD, set(), defined.out, union)
         elif self._analysis is Analysis.CPROP:
-            return self._solve(func["instrs"], set(), cprop.out, intersection)
+            return self._solve(
+                func["instrs"], Flow.FORWARD, set(), cprop.out, intersection
+            )
+        elif self._analysis is Analysis.LIVE:
+            return self._solve(func["instrs"], Flow.BACKWARD, set(), live.in_, union)
         else:
             raise ValueError(f"unknonw analysis {self._analysis}")
 
-    # TODO: backward
     def _solve(
         self,
         instrs: List[Instr],
+        flow: Flow,
         init: Set[T],
         transfer: Callable[[Block, Set[T]], Set[T]],
         merge: Callable[[Iterable[Set[T]]], Set[T]],
@@ -95,6 +111,7 @@ class DataFlowSolver:
 
         Args:
             instrs: A list of instructions.
+            flow: The flow direction of the analysis.
             init: The initial set of data flow values. Will be copied with `deepcopy`.
             transfer: A function to compute the OUT set from the IN set for a block.
             merge: A function to merge multiple IN sets.
@@ -109,12 +126,19 @@ class DataFlowSolver:
         name2successors: Dict[str, List[str]] = get_cfg(blocks)
         name2predecessors: Dict[str, List[str]] = find_predecessors(name2successors)
 
+        if flow is Flow.BACKWARD:
+            entry_name = list(blocks.keys())[-1]
+        else:
+            entry_name = list(blocks.keys())[0]
+
         # in[entry] = init
         ins: Dict[str, Set[T]] = {n: set() for n in blocks}
-        entry_name = list(blocks.keys())[0]
         ins[entry_name] = deepcopy(init)
         # out[*] = init
         outs: Dict[str, Set[T]] = {n: deepcopy(init) for n in blocks}
+
+        if flow is Flow.BACKWARD:
+            name2successors, name2predecessors = name2predecessors, name2successors
 
         # Represent the blocks with their names.
         worklist: Deque[str] = deque(blocks.keys())
@@ -132,8 +156,10 @@ class DataFlowSolver:
 
             ins[block_name] = in_
             outs[block_name] = out
-
         assert len(ins) == len(outs)
+
+        if flow is Flow.BACKWARD:
+            ins, outs = outs, ins
         return ins, outs
 
 
@@ -146,9 +172,9 @@ if __name__ == "__main__":
 
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
-    if args.analysis is Analysis.DEFINED:
+    if args.analysis in (Analysis.DEFINED, Analysis.LIVE):
         for func in prog["functions"]:
-            solver = DataFlowSolver(func["instrs"], Analysis.DEFINED)
+            solver = DataFlowSolver(func["instrs"], args.analysis)
             ins, outs = solver.solve()
             for block_name in ins.keys():
                 print(f"{block_name}:")
