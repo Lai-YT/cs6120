@@ -106,16 +106,14 @@ class DataFlowSolver:
     def solve(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if self._analysis is Analysis.DEFINED:
             return self._solve(
-                func["instrs"], Flow.FORWARD, set(), defined.out, set_union
+                self._instrs, Flow.FORWARD, set(), defined.out, set_union
             )
         elif self._analysis is Analysis.CPROP:
             return self._solve(
-                func["instrs"], Flow.FORWARD, dict(), cprop.out, dict_intersection
+                self._instrs, Flow.FORWARD, dict(), cprop.out, dict_intersection
             )
         elif self._analysis is Analysis.LIVE:
-            return self._solve(
-                func["instrs"], Flow.BACKWARD, set(), live.in_, set_union
-            )
+            return self._solve(self._instrs, Flow.BACKWARD, set(), live.in_, set_union)
         else:
             raise ValueError(f"unknonw analysis {self._analysis}")
 
