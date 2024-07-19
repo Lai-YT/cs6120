@@ -7,7 +7,7 @@
 
 from typing import Set
 
-from cfg import Block
+from type import Block
 
 
 def defs(b: Block) -> Set[str]:

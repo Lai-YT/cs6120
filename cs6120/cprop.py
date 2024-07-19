@@ -8,7 +8,7 @@
 import operator
 from typing import Any, Callable, Dict, List
 
-from cfg import Block
+from type import Block
 
 # By evaluating the operation, constant folding is performed.
 EVAL_OPS: Dict[str, Callable] = {

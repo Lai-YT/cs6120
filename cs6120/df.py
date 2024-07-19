@@ -22,8 +22,8 @@ from typing import (
 import cprop
 import defined
 import live
-
-from cfg import Block, Instr, form_blocks, get_cfg, name_blocks
+from cfg import form_blocks, get_cfg, name_blocks
+from type import Block, Instr
 
 
 def find_predecessors(name2successors: Dict[str, List[str]]) -> Dict[str, List[str]]:
