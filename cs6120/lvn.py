@@ -1,21 +1,19 @@
-"""This module defines the basic local value numbering.
+#!/usr/bin/env python3
+"""The basic local value numbering."""
 
-Constant propagation and folding are not supported.
-"""
-
-__version__ = "0.1.0"
-
+import argparse
 import json
 import sys
 from collections import namedtuple
 from typing import Any, Dict, List, Tuple, Union
 
-import cfg
+from cfg import form_blocks
+from type import Instr
 
 Value = namedtuple("Value", ["op", "args"])
 
 
-def rename_args_between(instrs: List[cfg.Instr], old_name: str, new_name: str) -> None:
+def rename_args_between(instrs: List[Instr], old_name: str, new_name: str) -> None:
     for instr in instrs:
         args = instr.get("args", [])
         for i, arg in enumerate(args):
@@ -38,7 +36,7 @@ def lvn() -> None:
 
     for func in prog["functions"]:
         # The l of lvn is for local.
-        for block in cfg.form_blocks(func["instrs"]):
+        for block in form_blocks(func["instrs"]):
             row_num = 0
             # Map the tuple value to its canonical variable with the row number wrapped together.
             # A value consists of an operator, along with its row number (or constant value).
@@ -46,7 +44,7 @@ def lvn() -> None:
             # Map the variable to the row number of its value.
             var2num: Dict[str, int] = {}
 
-            def replace_args_with_canonical(instr: cfg.Instr) -> None:
+            def replace_args_with_canonical(instr: Instr) -> None:
                 for i, arg in enumerate(instr.get("args", [])):
                     # Def of arg is in other basic block; not to touch it.
                     if arg not in var2num:
@@ -123,3 +121,9 @@ def lvn() -> None:
                 var2num[instr["dest"]] = the_row_num
 
     json.dump(prog, indent=2, fp=sys.stdout)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(sys.argv[0])
+    parser.parse_args()
+    lvn()

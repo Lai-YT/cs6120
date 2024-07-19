@@ -7,7 +7,7 @@
 
 from typing import Set
 
-from cfg import Block
+from type import Block
 
 
 def uses(b: Block) -> Set[str]:

@@ -1,21 +1,14 @@
-"""
-This module defines three commands for processing control-flow in programs:
+#!/usr/bin/env python3
+"""Processing control-flow."""
 
-1. `blocks`: Forms the basic blocks and adds a `blocks` section for each function in the program.
-2. `cfg`: Constructs the control-flow graph and adds a `cfg` section for each function in the program.
-3. `graph-cfg`: Represents the control-flow graph in GraphViz format.
-"""
-
-__version__ = "0.1.0"
-
+import argparse
 import json
 import sys
 import typing
 from collections import OrderedDict
-from typing import Any, Dict, Generator, Iterable, List, MutableMapping, TypeAlias
+from typing import Any, Dict, Generator, Iterable, List
 
-Instr: TypeAlias = MutableMapping[str, Any]
-Block: TypeAlias = List[Instr]
+from type import Block, Instr
 
 # NOTE: `call` is not considered a terminator because it transfers control back
 # to the next instruction.
@@ -179,3 +172,25 @@ def graph_cfg() -> None:
                 file=sys.stderr,
             )
         graph(func["name"], func["cfg"])
+
+
+MODES = {
+    "blocks": blocks,
+    "cfg": cfg,
+    "graph-cfg": graph_cfg,
+}
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        sys.argv[0],
+        description="""
+This module defines three commands for processing control-flow in programs:
+(1) `blocks`: Forms the basic blocks and adds a `blocks` section for each function in the program.
+(2) `cfg`: Constructs the control-flow graph and adds a `cfg` section for each function in the program.
+(3) `graph-cfg`: Represents the control-flow graph in GraphViz format.
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("mode", choices=MODES)
+    args = parser.parse_args()
+    MODES[args.mode]()

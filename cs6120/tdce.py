@@ -1,20 +1,17 @@
-"""Trivial Dead Code Elimination.
+#!/usr/bin/env python3
 
-This module defines two kinds of tdce optimization:
-(1) `tdce`: Removes defs with no use. This is a global optimization.
-(2) `tdce+`: Augments `tdce` by removing defs that have been re-defined later without a use in between. This has no effect if the program is already in SSA-form.
-"""
+"""Trivial Dead Code Elimination."""
 
-__version__ = "0.1.0"
-
+import argparse
 import json
 import sys
 from typing import Any, Callable, Dict, List, Set
 
-import cfg
+from cfg import form_blocks
+from type import Instr
 
 
-def remove_def_with_no_use(instrs: List[cfg.Instr]) -> List[cfg.Instr]:
+def remove_def_with_no_use(instrs: List[Instr]) -> List[Instr]:
     """Remove definitions with no uses.
 
     Args:
@@ -34,7 +31,7 @@ def remove_def_with_no_use(instrs: List[cfg.Instr]) -> List[cfg.Instr]:
     return [instr for instr in instrs if "dest" not in instr or instr["dest"] in used]
 
 
-def remove_re_def_with_no_use_between(instrs: List[cfg.Instr]) -> List[cfg.Instr]:
+def remove_re_def_with_no_use_between(instrs: List[Instr]) -> List[Instr]:
     """Remove re-definitions with no uses between them.
 
     Args:
@@ -43,8 +40,8 @@ def remove_re_def_with_no_use_between(instrs: List[cfg.Instr]) -> List[cfg.Instr
     Returns:
         A list of instructions with re-definitions that have no uses between them removed.
     """
-    for block in cfg.form_blocks(instrs):
-        unused: Dict[str, cfg.Instr] = {}
+    for block in form_blocks(instrs):
+        unused: Dict[str, Instr] = {}
         for instr in block:
             # An instruction may use and define a variable at the same time;
             # such a variable is considered used, followed by a new def that is unused.
@@ -60,13 +57,13 @@ def remove_re_def_with_no_use_between(instrs: List[cfg.Instr]) -> List[cfg.Instr
     return [instr for instr in instrs if "is_dead" not in instr]
 
 
-def main(passes: List[Callable[[List[cfg.Instr]], List[cfg.Instr]]]) -> None:
+def main(passes: List[Callable[[List[Instr]], List[Instr]]]) -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
     for func in prog["functions"]:
         for pass_ in passes:
             while True:
-                instrs: List[cfg.Instr] = func["instrs"]
+                instrs: List[Instr] = func["instrs"]
                 res = pass_(instrs)
                 if len(res) == len(instrs):
                     # converges
@@ -85,3 +82,23 @@ def tdce() -> None:
 
 def tdce_plus() -> None:
     main([remove_def_with_no_use, remove_re_def_with_no_use_between])
+
+
+MODES = {
+    "tdce": tdce,
+    "tdce+": tdce_plus,
+}
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        sys.argv[0],
+        description="""
+This module defines two kinds of tdce optimization:
+(1) `tdce`: Removes defs with no use. This is a global optimization. (default)
+(2) `tdce+`: Augments `tdce` by removing defs that have been re-defined later without a use in between. This has no effect if the program is already in SSA-form.
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("mode", choices=MODES, default="tdce", nargs="?")
+    args = parser.parse_args()
+    MODES[args.mode]()

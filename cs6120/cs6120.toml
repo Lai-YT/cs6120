@@ -10,21 +10,21 @@ pipeline = [
 [runs.tdce]
 pipeline = [
     "bril2json",
-    "tdce",
+    "./tdce.py",
     "brili -p {args}",
 ]
 
 [runs.tdce_plus]
 pipeline = [
     "bril2json",
-    "tdce+",
+    "./tdce.py tdce+",
     "brili -p {args}",
 ]
 
 [runs.lvn]
 pipeline = [
     "bril2json",
-    "lvn",
-    "tdce+",
+    "./lvn.py",
+    "./tdce.py tdce+",
     "brili -p {args}",
 ]
