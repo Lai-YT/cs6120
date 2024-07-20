@@ -49,23 +49,6 @@ def set_intersection(iterable: Iterable[Set[T]]) -> Set[T]:
         return set()
 
 
-def dict_intersection(dicts: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Note:
-        The key-value pairs have to be the same to be considered as intersected.
-    """
-    # Converts the dictionaries into sets of tuples to perform intersections.
-    intersections: Set[Tuple[str, Any]] = set_intersection(
-        set((k, v) for k, v in d.items()) for d in dicts
-    )
-    res: Dict[str, Any] = {}
-    for dict_ in dicts:
-        for k, v in dict_.items():
-            if (k, v) in intersections:
-                res[k] = v
-    return res
-
-
 class Analysis(Enum):
     # Reaching Definitions.
     DEFINED = auto()
@@ -99,7 +82,7 @@ class DataFlowSolver:
             )
         elif self._analysis is Analysis.CPROP:
             return self._solve(
-                self._instrs, Flow.FORWARD, dict(), cprop.out, dict_intersection
+                self._instrs, Flow.FORWARD, dict(), cprop.out, cprop.merge
             )
         elif self._analysis is Analysis.LIVE:
             return self._solve(self._instrs, Flow.BACKWARD, set(), live.in_, set_union)
