@@ -3,21 +3,9 @@
 import argparse
 import json
 import sys
-from collections import deque
 from copy import deepcopy
 from enum import Enum, auto
-from typing import (
-    Any,
-    Callable,
-    Deque,
-    Dict,
-    Iterable,
-    List,
-    OrderedDict,
-    Set,
-    Tuple,
-    TypeVar,
-)
+from typing import Any, Callable, Dict, Iterable, List, OrderedDict, Set, Tuple, TypeVar
 
 import cprop
 import defined
@@ -158,10 +146,10 @@ class DataFlowSolver:
             name2successors, name2predecessors = name2predecessors, name2successors
 
         # Represent the blocks with their names.
-        worklist: Deque[str] = deque(blocks.keys())
+        worklist: Set[str] = set(blocks.keys())
         while worklist:
             # We can pick any block here.
-            block_name = worklist.popleft()
+            block_name = worklist.pop()
             block = blocks[block_name]
 
             in_ = merge([outs[pred] for pred in name2predecessors[block_name]])
@@ -169,7 +157,7 @@ class DataFlowSolver:
 
             # Until the basic block converges.
             if out != outs[block_name]:
-                worklist += name2successors[block_name]
+                worklist.update(name2successors[block_name])
 
             ins[block_name] = in_
             outs[block_name] = out
