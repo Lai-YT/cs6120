@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """The data flow solver."""
 
 import argparse
