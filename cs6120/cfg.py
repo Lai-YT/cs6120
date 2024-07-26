@@ -55,6 +55,7 @@ def name_blocks(blocks: Iterable[Block]) -> typing.OrderedDict[str, Block]:
 
     For those without a label, a name will be created; for those with a label, the label is used
     as its name. The label is then removed since the name will be used for reference.
+    Additionally, blocks without a terminator are fixed.
 
     Args:
         blocks: An iterable of blocks.
@@ -76,7 +77,28 @@ def name_blocks(blocks: Iterable[Block]) -> typing.OrderedDict[str, Block]:
 
         name_to_block[name] = block
 
+    add_terminators(name_to_block)
     return name_to_block
+
+
+def add_terminators(blocks: typing.OrderedDict[str, Block]) -> None:
+    """Ensures each block ends with a terminator instruction.
+
+    This function iterates over each block and checks if the last instruction
+    is a terminator. If a block does not end with a terminator, it appends a
+    jump to the next block or a return if it is the last block. This avoids
+    fall-through by ensuring that each block has a clear transfer of control.
+
+    Args:
+        blocks: An ordered dictionary mapping block names to blocks.
+    """
+    for i, block in enumerate(blocks.values()):
+        if not block or block[-1]["op"] not in TERMINATORS:
+            if i == len(blocks) - 1:
+                block.append({"op": "ret", "args": []})
+            else:
+                next = list(blocks.keys())[i + 1]
+                block.append({"op": "jmp", "labels": [next]})
 
 
 def get_cfg(name_to_block: typing.OrderedDict[str, Block]) -> Dict[str, List[str]]:
