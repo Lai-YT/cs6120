@@ -7,7 +7,9 @@ import sys
 from collections import namedtuple
 from typing import Any, Dict, List, Tuple, Union
 
-from cfg import form_blocks
+from cfg import form_blocks, name_blocks
+from cprop import EVAL_OPS, UNKNOWN, is_const
+from df import Analysis, DataFlowSolver
 from type import Instr
 
 Value = namedtuple("Value", ["op", "args"])
@@ -89,18 +91,22 @@ def rename_if_will_be_reassigned(
     return instr["dest"]
 
 
-def lvn() -> None:
+def lvn(cprop: bool = False) -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
 
     for func in prog["functions"]:
+        cprop_solver = DataFlowSolver(func["instrs"], Analysis.CPROP)
+        in_consts, out_consts = cprop_solver.solve()
         # The l of lvn is for local.
-        for block in form_blocks(func["instrs"]):
+        for block_name, block in name_blocks(form_blocks(func["instrs"])).items():
             row_num = 0
             # Map the tuple value to its canonical variable with the row number wrapped together.
             # A value consists of an operator, along with its row number (or constant value).
             val2var: Dict[Value, Tuple[str, int]] = {}
             # Map the variable to the row number of its value.
             var2num: Dict[str, int] = {}
+            # Map the variable to its constant value, or unknown if not a constant.
+            var2const = in_consts[block_name]
 
             def replace_args_with_canonical(instr: Instr) -> None:
                 for i, arg in enumerate(instr.get("args", [])):
@@ -123,6 +129,35 @@ def lvn() -> None:
                     # Not an assignment.
                     replace_args_with_canonical(instr)
                     continue
+
+                if cprop:
+                    # Propagate constantness to this instruction and record it to the mapping.
+                    if instr["op"] == "const":
+                        var2const[instr["dest"]] = instr["value"]
+                    elif (
+                        instr["op"] == "id"
+                        and instr["args"][0] in var2const
+                        and is_const(var2const[instr["args"][0]])
+                    ):
+                        # Propagate the constant.
+                        var2const[instr["dest"]] = var2const[instr["args"][0]]
+                        # Replace the instruuction with a constant operation.
+                        instr["op"] = "const"
+                        instr["value"] = var2const[instr["dest"]]
+                        del instr["args"]
+                    elif instr["op"] in EVAL_OPS and all(
+                        arg in var2const and is_const(var2const[arg])
+                        for arg in instr["args"]
+                    ):
+                        # If all of the arguments are constant, calculate them.
+                        vals = [var2const[arg] for arg in instr["args"]]
+                        var2const[instr["dest"]] = EVAL_OPS[instr["op"]](*vals)
+                        # Replace the instruction with a constant operation.
+                        instr["op"] = "const"
+                        instr["value"] = var2const[instr["dest"]]
+                        del instr["args"]
+                    else:
+                        var2const[instr["dest"]] = UNKNOWN
 
                 replace_args_with_canonical(instr)
                 val: Value = extract_value_repr(instr, var2num)
@@ -150,11 +185,19 @@ def lvn() -> None:
                     val2var[val] = dest, the_row_num
 
                 var2num[instr["dest"]] = the_row_num
+            if cprop:
+                assert var2const == out_consts[block_name]
 
     json.dump(prog, indent=2, fp=sys.stdout)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(sys.argv[0])
-    parser.parse_args()
-    lvn()
+    parser.add_argument(
+        "-c",
+        "--cprop",
+        help="enable constant propagation and constant folding",
+        action="store_true",
+    )
+    args = parser.parse_args()
+    lvn(args.cprop)
