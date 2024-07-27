@@ -30,7 +30,7 @@ def has_side_effect(op: str) -> bool:
 
 def is_commutative(op: str) -> bool:
     # No short circuit for "add" and "or" at this level.
-    return op in ("add", "mul", "eq", "add", "or")
+    return op in ("add", "mul", "eq", "and", "or")
 
 
 def extract_value_repr(instr: Instr, var2num: Dict[str, int]) -> Value:
@@ -59,7 +59,7 @@ def extract_value_repr(instr: Instr, var2num: Dict[str, int]) -> Value:
     if is_commutative(op):
         # Commutativity; sort the args to canonicalize.
         # NOTE: Row numbers can be str if is defined in other basic block.
-        return Value(*sorted(row_nums, key=lambda x: str(x)))
+        row_nums = tuple(sorted(row_nums, key=lambda x: str(x)))
     return Value(op, row_nums)
 
 
