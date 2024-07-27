@@ -8,7 +8,7 @@ from collections import namedtuple
 from typing import Any, Dict, List, Tuple, Union
 
 from cfg import form_blocks, name_blocks
-from cprop import EVAL_OPS, UNKNOWN, fold, is_const
+from cprop import is_const, lookup
 from df import Analysis, DataFlowSolver
 from type import Instr
 
@@ -131,26 +131,13 @@ def lvn(cprop: bool = False) -> None:
                     continue
 
                 if cprop:
-                    # Propagate constantness to this instruction and record it to the mapping.
-                    if instr["op"] == "const":
-                        var2const[instr["dest"]] = instr["value"]
-                    elif instr["op"] == "id" and is_const(
-                        var2const.get(instr["args"][0], UNKNOWN)
-                    ):
-                        # Propagate the constant.
-                        var2const[instr["dest"]] = var2const[instr["args"][0]]
-                        # Replace the instruuction with a constant operation.
-                        instr["op"] = "const"
-                        instr["value"] = var2const[instr["dest"]]
-                        del instr["args"]
-                    elif (res := fold(instr, var2const)) is not None:
-                        var2const[instr["dest"]] = res
+                    const = lookup(instr, var2const)
+                    var2const[instr["dest"]] = const
+                    if is_const(const):
                         # Replace the instruction with a constant operation.
                         instr["op"] = "const"
-                        instr["value"] = res
-                        del instr["args"]
-                    else:
-                        var2const[instr["dest"]] = UNKNOWN
+                        instr["value"] = const
+                        instr.pop("args", None)
 
                 replace_args_with_canonical(instr)
                 val: Value = extract_value_repr(instr, var2num)

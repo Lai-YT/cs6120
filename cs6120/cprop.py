@@ -83,6 +83,27 @@ def fold(instr: Instr, var2const: Dict[str, Any]) -> Optional[Any]:
     return EVAL_OPS[op](*vals)
 
 
+def lookup(instr: Instr, var2const: Dict[str, Any]) -> Any:
+    """Retrieves the constant value for the instruction or attempts to fold it if possible.
+
+    Args:
+        instr: The instruction to process, containing operation, arguments, and possibly a value.
+        var2const: A dictionary mapping variable names to their constant values.
+
+    Returns:
+        The constant value if the instruction or its arguments resolve to a constant, otherwise UNKNOWN.
+    """
+    if instr["op"] == "const":
+        return instr["value"]
+    if instr["op"] == "id" and is_const(var2const.get(instr["args"][0], UNKNOWN)):
+        # Propagate the constant.
+        return var2const[instr["args"][0]]
+    if (res := fold(instr, var2const)) is not None:
+        return res
+    # Assigned with a non-constant variable; no longer a constant.
+    return UNKNOWN
+
+
 def merge(dicts: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     """
     A variable can be missing from some of the predecessors as long as it is always present with the same known constant value.
@@ -113,17 +134,6 @@ def out(b: Block, in_: Dict[str, Any]) -> Dict[str, Any]:
     for instr in b:
         if "op" not in instr or "dest" not in instr:
             continue
+        var2const[instr["dest"]] = lookup(instr, var2const)
 
-        op: str = instr["op"]
-        dest: str = instr["dest"]
-        if op == "const":
-            var2const[dest] = instr["value"]
-        elif op == "id" and is_const(var2const.get(instr["args"][0], UNKNOWN)):
-            # Propagate the constant.
-            var2const[dest] = var2const[instr["args"][0]]
-        elif (res := fold(instr, var2const)) is not None:
-            var2const[dest] = res
-        else:
-            # Assigned with a non-constant variable; no longer a constant.
-            var2const[dest] = UNKNOWN
     return var2const
