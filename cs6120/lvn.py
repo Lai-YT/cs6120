@@ -8,7 +8,7 @@ from collections import namedtuple
 from typing import Any, Dict, List, Tuple, Union
 
 from cfg import form_blocks, name_blocks
-from cprop import EVAL_OPS, UNKNOWN, is_const
+from cprop import EVAL_OPS, UNKNOWN, fold, is_const
 from df import Analysis, DataFlowSolver
 from type import Instr
 
@@ -134,10 +134,8 @@ def lvn(cprop: bool = False) -> None:
                     # Propagate constantness to this instruction and record it to the mapping.
                     if instr["op"] == "const":
                         var2const[instr["dest"]] = instr["value"]
-                    elif (
-                        instr["op"] == "id"
-                        and instr["args"][0] in var2const
-                        and is_const(var2const[instr["args"][0]])
+                    elif instr["op"] == "id" and is_const(
+                        var2const.get(instr["args"][0], UNKNOWN)
                     ):
                         # Propagate the constant.
                         var2const[instr["dest"]] = var2const[instr["args"][0]]
@@ -145,16 +143,11 @@ def lvn(cprop: bool = False) -> None:
                         instr["op"] = "const"
                         instr["value"] = var2const[instr["dest"]]
                         del instr["args"]
-                    elif instr["op"] in EVAL_OPS and all(
-                        arg in var2const and is_const(var2const[arg])
-                        for arg in instr["args"]
-                    ):
-                        # If all of the arguments are constant, calculate them.
-                        vals = [var2const[arg] for arg in instr["args"]]
-                        var2const[instr["dest"]] = EVAL_OPS[instr["op"]](*vals)
+                    elif (res := fold(instr, var2const)) is not None:
+                        var2const[instr["dest"]] = res
                         # Replace the instruction with a constant operation.
                         instr["op"] = "const"
-                        instr["value"] = var2const[instr["dest"]]
+                        instr["value"] = res
                         del instr["args"]
                     else:
                         var2const[instr["dest"]] = UNKNOWN
