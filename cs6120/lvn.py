@@ -100,11 +100,13 @@ def lvn(cprop: bool = False) -> None:
         # The l of lvn is for local.
         for block_name, block in name_blocks(form_blocks(func["instrs"])).items():
             row_num = 0
-            # Map the tuple value to its canonical variable with the row number wrapped together.
+            # Map the tuple value to its canonical variable.
             # A value consists of an operator, along with its row number (or constant value).
-            val2var: Dict[Value, Tuple[str, int]] = {}
+            val2var: Dict[Value, str] = {}
             # Map the variable to the row number of its value.
             var2num: Dict[str, int] = {}
+            # Map the row number to the canonical variable.
+            num2var: Dict[int, str] = {}
             # Map the variable to its constant value, or unknown if not a constant.
             var2const = in_consts[block_name]
 
@@ -114,9 +116,7 @@ def lvn(cprop: bool = False) -> None:
                     if arg not in var2num:
                         continue
                     the_row_num = var2num[arg]
-                    # NOTE: This requires the dict to be ordered, and the row number must exactly match the ordered we added.
-                    var, _ = list(val2var.values())[the_row_num]
-                    instr["args"][i] = var
+                    instr["args"][i] = num2var[the_row_num]
 
             # Used to rename variables that are reassigned.
             lvn_number = 0
@@ -139,17 +139,33 @@ def lvn(cprop: bool = False) -> None:
                         instr["value"] = const
                         instr.pop("args", None)
 
+                if instr["op"] == "id" and instr["args"][0] not in var2num:
+                    # The argument is defined in other basic blocks or is an input argument.
+                    # Create a dummy value for it, which is an id operation on itself.
+                    # This exploits more copy propagation opportunities.
+                    arg = instr["args"][0]
+                    # However, since there isn't an actual id operation, we cannot renamed it when its later reassigned. In such cases, we don't create a value for it.
+                    # TODO: This is too conservative. If there's no use after the reassignment (but may at the successors), we can still add it.
+                    if not any(
+                        "dest" in later_instr and later_instr["dest"] == arg
+                        for later_instr in block[i:]
+                    ):
+                        val2var[Value("id", (row_num,))] = arg
+                        var2num[arg] = row_num
+                        num2var[row_num] = arg
+                        row_num += 1
+
                 replace_args_with_canonical(instr)
                 val: Value = extract_value_repr(instr, var2num)
 
                 if val in val2var and not has_side_effect(val.op):
                     # The value has been computed before;
                     # map it to the canonical variable without adding a new row.
-                    var, the_row_num = val2var[val]
+                    the_row_num = var2num[val2var[val]]
                     if val.op != "const":
                         # Replace the instruction as directly using the canonical variable to eliminate the computation.
                         instr["op"] = "id"
-                        instr["args"] = [var]
+                        instr["args"] = [val2var[val]]
                 else:
                     # If the variable is going to be reassigned, we give it an unique name so that the value is correct when later instructions use it as the canonical variable.
                     dest = rename_if_will_be_reassigned(
@@ -163,12 +179,18 @@ def lvn(cprop: bool = False) -> None:
                         instr["dest"] = dest
                         lvn_number += 1
 
-                    # A new value.
-                    the_row_num = row_num
-                    row_num += 1
-                    val2var[val] = dest, the_row_num
+                    # For an id operation, the canonical variable is the argument. This allows copy propagation.
+                    if val.op == "id" and instr["args"][0] in var2num:
+                        the_row_num = var2num[instr["args"][0]]
+                    else:
+                        # A new value.
+                        the_row_num = row_num
+                        row_num += 1
+                        num2var[the_row_num] = dest
+                    val2var[val] = num2var[the_row_num]
 
                 var2num[instr["dest"]] = the_row_num
+
             if cprop:
                 # Ensure that we performed the constant propagation correctly.
                 # NOTE: When there are reassignments, our mapping contains additional renamed variables. Variables other than these should have the same value.
