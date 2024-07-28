@@ -28,3 +28,11 @@ pipeline = [
     "./tdce.py tdce+",
     "brili -p {args}",
 ]
+
+[runs.cprop]
+pipeline = [
+    "bril2json",
+    "./lvn.py --cprop",
+    "./tdce.py tdce+",
+    "brili -p {args}",
+]
