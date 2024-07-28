@@ -156,6 +156,10 @@ def lvn(cprop: bool = False) -> None:
                         instr, block[i + 1 :], lvn_number
                     )
                     if dest != instr["dest"]:
+                        # Update the constant mapping to use the new name.
+                        if cprop:
+                            var2const[dest] = var2const.pop(instr["dest"])
+
                         instr["dest"] = dest
                         lvn_number += 1
 
@@ -166,7 +170,10 @@ def lvn(cprop: bool = False) -> None:
 
                 var2num[instr["dest"]] = the_row_num
             if cprop:
-                assert var2const == out_consts[block_name]
+                # Ensure that we performed the constant propagation correctly.
+                # NOTE: When there are reassignments, our mapping contains additional renamed variables. Variables other than these should have the same value.
+                for k, v in out_consts[block_name].items():
+                    assert var2const[k] == v
 
     json.dump(prog, indent=2, fp=sys.stdout)
 
