@@ -47,6 +47,20 @@ def dom_tree(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
     return tree
 
 
+def dom_front(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
+    # If A dominates B but not C, where C is a successor of B, then C is in the dominance frontiers of A.
+    dom = get_dom(cfg)
+    front: Dict[str, List[str]] = {b: [] for b in cfg.blocks}
+    for c in cfg.blocks:
+        for b in cfg.predecessors_of(c):
+            for a in dom[b]:
+                # If a == c, there's a loop, and c is the header.
+                # It's a frontier of itself.
+                if a not in dom[c] or a == c:
+                    front[a].append(c)
+    return {b: sorted(l) for b, l in front.items()}
+
+
 def set2sortedlist(o) -> List:
     if isinstance(o, set):
         return sorted(list(o))
@@ -56,6 +70,7 @@ def set2sortedlist(o) -> List:
 COMMANDS = {
     "dom": get_dom,
     "tree": dom_tree,
+    "front": dom_front,
 }
 
 
