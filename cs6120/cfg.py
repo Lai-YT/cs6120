@@ -15,6 +15,51 @@ from type import Block, Instr
 TERMINATORS = "jmp", "br", "ret"
 
 
+class ControlFlowGraph:
+    def __init__(self, func: Iterable[Instr]) -> None:
+        self._blocks = name_blocks(form_blocks(func))
+        self._successors = get_cfg(self._blocks)
+        self._predecessors = find_predecessors(self._successors)
+
+    def successors_of(self, block: str) -> List[str]:
+        """Returns the block names of the successors."""
+        return self._successors[block]
+
+    def predecessors_of(self, block: str) -> List[str]:
+        """Returns the block names of the predecessors."""
+        return self._predecessors[block]
+
+    def ensure_entry(self) -> None:
+        """Ensures there's an entry block that has no predecessors.
+
+        If no, adds an entry block that transfers directly to the old entry block.
+        """
+        if not self._predecessors[self.entry]:
+            return
+        instr: Instr = {
+            "op": "jmp",
+            "labels": [self.entry],
+        }
+        # FIXME: Possible name conflict.
+        blk_name = "entry.1"
+        blk: Block = [instr]
+        self._predecessors[blk_name] = []
+        self._successors[blk_name] = [self.entry]
+        self._predecessors[self.entry].append(blk_name)
+        self._blocks[blk_name] = blk
+        self._blocks.move_to_end(blk_name, last=False)
+
+    @property
+    def blocks(self) -> List[str]:
+        """The name of blocks."""
+        return list(self._blocks.keys())
+
+    @property
+    def entry(self) -> str:
+        """The name of the entry block."""
+        return self.blocks[0]
+
+
 def form_blocks(body: Iterable[Instr]) -> Generator[Block, None, None]:
     """Converts a list of instructions into a list of basic blocks.
 
@@ -99,6 +144,23 @@ def add_terminators(blocks: typing.OrderedDict[str, Block]) -> None:
             else:
                 next = list(blocks.keys())[i + 1]
                 block.append({"op": "jmp", "labels": [next]})
+
+
+def find_predecessors(name2successors: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    """Finds the predecessors of blocks through their successors.
+
+    Args:
+        name2successors: A dictionary mapping block names to their successor block names.
+
+    Returns:
+        A dictionary mapping block names to their predecessor block names.
+    """
+    name2predecessors: Dict[str, List[str]] = {n: list() for n in name2successors}
+    for name, successors in name2successors.items():
+        for this_name in name2predecessors:
+            if this_name in successors:
+                name2predecessors[this_name].append(name)
+    return name2predecessors
 
 
 def get_cfg(name_to_block: typing.OrderedDict[str, Block]) -> Dict[str, List[str]]:
