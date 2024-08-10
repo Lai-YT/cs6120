@@ -33,6 +33,20 @@ def get_dom(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
     return dom
 
 
+def dom_tree(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
+    dom = get_dom(cfg)
+    tree = {}
+    queue = [cfg.entry]
+    while queue:
+        par = queue.pop(0)
+        succs = cfg.successors_of(par)
+        chd = [succ for succ in succs if par in dom[succ]]
+        queue.extend(chd)
+        # sorted just for convenience of testing
+        tree[par] = sorted(chd)
+    return tree
+
+
 def set2sortedlist(o) -> List:
     if isinstance(o, set):
         return sorted(list(o))
@@ -41,6 +55,7 @@ def set2sortedlist(o) -> List:
 
 COMMANDS = {
     "dom": get_dom,
+    "tree": dom_tree,
 }
 
 
