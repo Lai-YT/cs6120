@@ -5,7 +5,7 @@ import functools
 import json
 import operator
 import sys
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from cfg import ControlFlowGraph
 
@@ -35,16 +35,25 @@ def get_dom(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
 
 def dom_tree(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
     dom = get_dom(cfg)
-    tree = {}
-    queue = [cfg.entry]
-    while queue:
-        par = queue.pop(0)
-        succs = cfg.successors_of(par)
-        chd = [succ for succ in succs if par in dom[succ]]
-        queue.extend(chd)
-        # sorted just for convenience of testing
-        tree[par] = sorted(chd)
-    return tree
+    tree: Dict[str, List[str]] = {b: [] for b in cfg.blocks}
+    for b in cfg.blocks:
+        idom = intermediate_dominator_of(dom, b)
+        if idom is not None:
+            tree[idom].append(b)
+    return {b: sorted(l) for b, l in tree.items()}
+
+
+def intermediate_dominator_of(dom: Dict[str, Set[str]], y: str) -> Optional[str]:
+    """
+    Returns:
+        The intermediate dominator of `y`; None if `y` is the entry block, which has no intermediate dominator.
+    """
+    # For the block x to be the intermediate dominator of y, all other dominators of y should also dominates x.
+    strict_dom_y = dom[y] - set([y])
+    for x in strict_dom_y:
+        if all(xx in dom[x] for xx in strict_dom_y):
+            return x
+    return None
 
 
 def dom_front(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
