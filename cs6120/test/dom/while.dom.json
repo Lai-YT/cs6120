@@ -1,0 +1,19 @@
+{
+  "entry.1": [
+    "entry.1"
+  ],
+  "while.body": [
+    "entry.1",
+    "while.body",
+    "while.cond"
+  ],
+  "while.cond": [
+    "entry.1",
+    "while.cond"
+  ],
+  "while.finish": [
+    "entry.1",
+    "while.cond",
+    "while.finish"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "b0": [],
+  "else.1": [
+    "endif.1"
+  ],
+  "else.2": [
+    "foreverloop"
+  ],
+  "endif.1": [],
+  "foreverloop": [
+    "foreverloop"
+  ],
+  "loopend": [],
+  "then.1": [
+    "endif.1"
+  ],
+  "then.2": []
+}
+{
+  "b0": []
+}

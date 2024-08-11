@@ -1,0 +1,46 @@
+{
+  "b0": [
+    "b0"
+  ],
+  "else.1": [
+    "b0",
+    "else.1"
+  ],
+  "else.2": [
+    "b0",
+    "else.2",
+    "endif.1",
+    "foreverloop"
+  ],
+  "endif.1": [
+    "b0",
+    "endif.1"
+  ],
+  "foreverloop": [
+    "b0",
+    "endif.1",
+    "foreverloop"
+  ],
+  "loopend": [
+    "b0",
+    "endif.1",
+    "foreverloop",
+    "loopend",
+    "then.2"
+  ],
+  "then.1": [
+    "b0",
+    "then.1"
+  ],
+  "then.2": [
+    "b0",
+    "endif.1",
+    "foreverloop",
+    "then.2"
+  ]
+}
+{
+  "b0": [
+    "b0"
+  ]
+}
