@@ -18,7 +18,7 @@ def get_dom(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
     while changed:
         changed = False
         for vertex in cfg.block_names:
-            new_dom = set([vertex])
+            new_dom = {vertex}
             try:
                 new_dom |= functools.reduce(
                     operator.and_, (dom[x] for x in cfg.predecessors_of(vertex))
@@ -49,7 +49,7 @@ def intermediate_dominator_of(dom: Dict[str, Set[str]], y: str) -> Optional[str]
         The intermediate dominator of `y`; None if `y` is the entry block, which has no intermediate dominator.
     """
     # For the block x to be the intermediate dominator of y, all other dominators of y should also dominates x.
-    strict_dom_y = dom[y] - set([y])
+    strict_dom_y = dom[y] - {y}
     for x in strict_dom_y:
         if all(xx in dom[x] for xx in strict_dom_y):
             return x
