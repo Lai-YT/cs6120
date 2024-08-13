@@ -20,6 +20,7 @@ class ControlFlowGraph:
         self._blocks = name_blocks(form_blocks(func))
         self._successors = get_cfg(self._blocks)
         self._predecessors = find_predecessors(self._successors)
+        self._add_entry()
 
     def successors_of(self, block: str) -> List[str]:
         """Returns the block names of the successors."""
@@ -29,10 +30,11 @@ class ControlFlowGraph:
         """Returns the block names of the predecessors."""
         return self._predecessors[block]
 
-    def ensure_entry(self) -> None:
-        """Ensures there's an entry block that has no predecessors.
+    def _add_entry(self) -> None:
+        """Adds an entry block that transfers directly to the old entry block if the old entry block has predecessors.
 
-        If no, adds an entry block that transfers directly to the old entry block.
+        This keeps algorithms from being confused by blocks that jump back to the entry node.
+        Predecessors and successors are updated accordingly.
         """
         if not self._predecessors[self.entry]:
             return

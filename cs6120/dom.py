@@ -97,7 +97,6 @@ def main() -> None:
 
     for func in prog["functions"]:
         cfg = ControlFlowGraph(func["instrs"])
-        cfg.ensure_entry()
         print(
             json.dumps(
                 COMMANDS[args.cmd](cfg),
