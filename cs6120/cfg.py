@@ -6,7 +6,7 @@ import json
 import sys
 import typing
 from collections import OrderedDict
-from typing import Any, Dict, Generator, Iterable, List
+from typing import Any, Dict, Generator, Iterable, List, Mapping
 
 from type import Block, Instr
 
@@ -54,6 +54,11 @@ class ControlFlowGraph:
     @property
     def block_names(self) -> List[str]:
         return list(self._blocks.keys())
+
+    # The return type is a general mapping to prevent user from depending on certain properties.
+    @property
+    def blocks(self) -> Mapping[str, Block]:
+        return self._blocks
 
     @property
     def entry(self) -> str:
