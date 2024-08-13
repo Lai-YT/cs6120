@@ -65,6 +65,11 @@ class ControlFlowGraph:
         """The name of the entry block."""
         return self.block_names[0]
 
+    @property
+    def exit(self) -> str:
+        """The name of the exit block."""
+        return self.block_names[-1]
+
 
 def form_blocks(body: Iterable[Instr]) -> Generator[Block, None, None]:
     """Converts a list of instructions into a list of basic blocks.
