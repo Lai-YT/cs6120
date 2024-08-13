@@ -52,14 +52,13 @@ class ControlFlowGraph:
         self._blocks.move_to_end(blk_name, last=False)
 
     @property
-    def blocks(self) -> List[str]:
-        """The name of blocks."""
+    def block_names(self) -> List[str]:
         return list(self._blocks.keys())
 
     @property
     def entry(self) -> str:
         """The name of the entry block."""
-        return self.blocks[0]
+        return self.block_names[0]
 
 
 def form_blocks(body: Iterable[Instr]) -> Generator[Block, None, None]:

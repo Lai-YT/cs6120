@@ -12,12 +12,12 @@ from cfg import ControlFlowGraph
 
 def get_dom(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
     # The operator is set intersection; initialized with the set of all blocks.
-    dom: Dict[str, Set[str]] = {b: set(cfg.blocks) for b in cfg.blocks}
+    dom: Dict[str, Set[str]] = {b: set(cfg.block_names) for b in cfg.block_names}
     dom[cfg.entry] = {cfg.entry}
     changed = True
     while changed:
         changed = False
-        for vertex in cfg.blocks:
+        for vertex in cfg.block_names:
             new_dom = set([vertex])
             try:
                 new_dom |= functools.reduce(
@@ -35,8 +35,8 @@ def get_dom(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
 
 def dom_tree(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
     dom = get_dom(cfg)
-    tree: Dict[str, List[str]] = {b: [] for b in cfg.blocks}
-    for b in cfg.blocks:
+    tree: Dict[str, List[str]] = {b: [] for b in cfg.block_names}
+    for b in cfg.block_names:
         idom = intermediate_dominator_of(dom, b)
         if idom is not None:
             tree[idom].append(b)
@@ -59,8 +59,8 @@ def intermediate_dominator_of(dom: Dict[str, Set[str]], y: str) -> Optional[str]
 def dom_front(cfg: ControlFlowGraph) -> Dict[str, List[str]]:
     # If A dominates B but not C, where C is a successor of B, then C is in the dominance frontiers of A.
     dom = get_dom(cfg)
-    front: Dict[str, List[str]] = {b: [] for b in cfg.blocks}
-    for c in cfg.blocks:
+    front: Dict[str, List[str]] = {b: [] for b in cfg.block_names}
+    for c in cfg.block_names:
         for b in cfg.predecessors_of(c):
             for a in dom[b]:
                 # If a == c, there's a loop, and c is the header.
