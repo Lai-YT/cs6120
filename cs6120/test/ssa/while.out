@@ -1,0 +1,19 @@
+@main(a: int) {
+.entry.1:
+  jmp .while.cond;
+.while.cond:
+  a.0: int = phi a.1 a.undef .while.body .entry.1;
+  one.0: int = phi one.1 one.undef .while.body .entry.1;
+  is_term.0: bool = phi is_term.1 is_term.undef .while.body .entry.1;
+  zero.0: int = phi zero.1 zero.undef .while.body .entry.1;
+  zero.1: int = const 0;
+  is_term.1: bool = eq a.0 zero.1;
+  br is_term.1 .while.finish .while.body;
+.while.body:
+  one.1: int = const 1;
+  a.1: int = sub a.0 one.1;
+  jmp .while.cond;
+.while.finish:
+  print a.0;
+  ret;
+}
