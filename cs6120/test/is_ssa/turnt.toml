@@ -1,0 +1,1 @@
+command = "bril2json < {filename} | ../../ssa.py to | python3 ../../../examples/is_ssa.py"
