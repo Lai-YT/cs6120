@@ -8,7 +8,7 @@ from typing import Any, DefaultDict, Dict, List, Optional, Set
 
 from cfg import ControlFlowGraph
 from dom import dom_front, dom_tree
-from type import Block
+from type import Block, Instr
 
 
 def defsites(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
@@ -61,21 +61,6 @@ def type_of(var: str, def_block: Block) -> Optional[str]:
     return None
 
 
-def old_name(var: str) -> str:
-    """Strips any renaming suffix from a variable name to get the original name.
-
-    Args:
-        var: The potentially renamed variable (e.g., "x.1").
-
-    Returns:
-        The original variable name without suffix (e.g., "x").
-    """
-    s = var.split(".")
-    if len(s) == 1:
-        return var
-    return ".".join(s[:-1])
-
-
 def insert_phi_nodes(
     cfg: ControlFlowGraph,
     defs: Dict[str, Set[str]],
@@ -117,6 +102,10 @@ def insert_phi_nodes(
                         defs[v].add(f)
 
 
+def is_phi(instr: Instr) -> bool:
+    return instr.get("op", "") == "phi"
+
+
 def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
     """Renames variables in the control flow graph.
 
@@ -126,7 +115,6 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
         cfg: The control flow graph of the function.
         vars: The list of all variables in the function.
     """
-    dtree = dom_tree(cfg)
     # NOTE: A variable is not defined in a path if you access stack[v] and it is empty.
     stack: Dict[str, List[str]] = {v: [] for v in vars}
     TOP = -1
@@ -140,6 +128,13 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
         num[v] += 1
         return stack[v][TOP]
 
+    def rename_args(instr: Instr) -> None:
+        for i, arg in enumerate(instr.get("args", [])):
+            if stack[arg]:
+                instr["args"][i] = stack[arg][TOP]
+
+    dtree = dom_tree(cfg)
+
     def rename_recur(block_name: str) -> None:
         """Recursively renames variables in the dominator tree.
 
@@ -150,28 +145,29 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
         rename_count: DefaultDict[str, int] = defaultdict(int)
         for instr in cfg.blocks[block_name]:
             # First, rename the use of variables in the arguments.
-            for i, arg in enumerate(instr.get("args", [])):
-                if stack[old_name(arg)]:
-                    instr["args"][i] = stack[old_name(arg)][TOP]
+            # NOTE: We have to skip the phi-node instructions here, as they were already renamed.
+            # Otherwise, looking up a renamed variable in the stack can cause an error.
+            if not is_phi(instr):
+                rename_args(instr)
             # Then, rename the destination variable.
             if "dest" in instr:
                 v = instr["dest"]
                 rename_count[v] += 1
                 instr["dest"] = fresh_name(v, num)
         # Rename phi-node arguments in successor blocks.
-        for succ in map(lambda bn: cfg.blocks[bn], cfg.successors_of(block_name)):
-            for p in filter(lambda instr: instr.get("op", "") == "phi", succ):
+        successor_blocks = list(
+            map(cfg.blocks.__getitem__, cfg.successors_of(block_name))
+        )
+        for succ in successor_blocks:
+            for p in filter(is_phi, succ):
+                # Rename the argument that comes from the current block.
                 for i, lbl in enumerate(p["labels"]):
-                    if lbl == block_name:
-                        # Rename the argument of the phi-node.
-                        # If the variable is not defined in this path, suffix with .undef.
-                        name = (
-                            stack[old_name(p["args"][i])][TOP]
-                            if stack[old_name(p["args"][i])]
-                            else f'{p["args"][i]}.undef'
-                        )
-                        p["args"][i] = name
-                        break
+                    if lbl != block_name:
+                        continue
+                    # If the variable is not defined in this path, suffix with .undef.
+                    arg = p["args"][i]
+                    p["args"][i] = stack[arg][TOP] if stack[arg] else f"{arg}.undef"
+                    break
         for b in dtree[block_name]:
             rename_recur(b)
         # Restore the stack after processing the block.
