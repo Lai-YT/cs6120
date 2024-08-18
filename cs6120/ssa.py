@@ -56,8 +56,8 @@ def type_of(var: str, def_block: Block) -> Optional[str]:
         The type of the variable as a string, or None if the block does not define the variable.
     """
     for instr in def_block:
-        if "dest" in instr and instr["dest"] == var:
-            return instr["type"]
+        if instr.get("dest") == var:
+            return instr.get("type")
     return None
 
 
@@ -88,7 +88,8 @@ def insert_phi_nodes(
     for v in vars:
         while defs[v]:
             d = defs[v].pop()
-            for f, block in map(lambda f: (f, cfg.blocks[f]), front[d]):
+            for f in front[d]:
+                block = cfg.blocks[f]
                 # Add a new phi-node for the variable if it doesn't have one.
                 if v not in phi[f]:
                     block.insert(
@@ -103,12 +104,11 @@ def insert_phi_nodes(
                     )
                     phi[f].add(v)
                     if v not in orig[f]:
-                        # This is a new definition of the variable.
                         defs[v].add(f)
 
 
 def is_phi(instr: Instr) -> bool:
-    return instr.get("op", "") == "phi"
+    return instr.get("op") == "phi"
 
 
 def rename_variable(
@@ -140,6 +140,7 @@ def rename_variable(
         return stack[v][TOP]
 
     def rename_args(instr: Instr) -> None:
+        """Renames the arguments of an instruction."""
         for i, arg in enumerate(instr.get("args", [])):
             if stack[arg]:
                 instr["args"][i] = stack[arg][TOP]
@@ -147,11 +148,7 @@ def rename_variable(
     dtree = dom_tree(cfg)
 
     def rename_recur(block_name: str) -> None:
-        """Recursively renames variables in the dominator tree.
-
-        Args:
-            block_name: The name of the current block in the dominator tree.
-        """
+        """Recursively renames variables in the dominator tree."""
         # Tracks the number of times a variable is renamed to restore the stack later.
         rename_count: DefaultDict[str, int] = defaultdict(int)
         for instr in cfg.blocks[block_name]:
@@ -166,11 +163,8 @@ def rename_variable(
                 rename_count[v] += 1
                 instr["dest"] = fresh_name(v, num)
         # Rename phi-node arguments in successor blocks.
-        successor_blocks = list(
-            map(cfg.blocks.__getitem__, cfg.successors_of(block_name))
-        )
-        for succ in successor_blocks:
-            for p in filter(is_phi, succ):
+        for succ in cfg.successors_of(block_name):
+            for p in filter(is_phi, cfg.blocks[succ]):
                 # Rename the argument that comes from the current block.
                 for i, lbl in enumerate(p["labels"]):
                     if lbl != block_name:
