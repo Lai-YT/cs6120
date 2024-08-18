@@ -63,9 +63,8 @@ def type_of(var: str, def_block: Block) -> Optional[str]:
 
 def insert_phi_nodes(
     cfg: ControlFlowGraph,
-    defs: Dict[str, Set[str]],
-    orig: Dict[str, Set[str]],
     vars: List[str],
+    func_args: List[str],
 ) -> None:
     """Inserts Phi nodes into the control flow graph.
 
@@ -73,10 +72,16 @@ def insert_phi_nodes(
 
     Args:
         cfg: The control flow graph of the function.
-        defs: A dictionary mapping variables to their definition sites.
-        orig: A dictionary mapping blocks to variables defined within them.
         vars: The list of all variables in the function.
+        func_args: The list of arguments of the function.
     """
+    defs = defsites(cfg)
+    orig = deforig(cfg)
+    # Consider function arguments as defined in the entry block.
+    for arg in func_args:
+        defs[arg].add(cfg.entry)
+        orig[cfg.entry].add(arg)
+
     front = dom_front(cfg)
     # Records the destination of phi-nodes that a block has, to avoid adding duplicates.
     phi: DefaultDict[str, Set[str]] = defaultdict(set)
@@ -106,7 +111,9 @@ def is_phi(instr: Instr) -> bool:
     return instr.get("op", "") == "phi"
 
 
-def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
+def rename_variable(
+    cfg: ControlFlowGraph, vars: List[str], func_args: List[str]
+) -> None:
     """Renames variables in the control flow graph.
 
     The arguments of the phi-nodes will be renamed to their corresponding definitions.
@@ -114,13 +121,17 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
     Args:
         cfg: The control flow graph of the function.
         vars: The list of all variables in the function.
+        func_args: The list of arguments of the function.
     """
     # NOTE: A variable is not defined in a path if you access stack[v] and it is empty.
     stack: Dict[str, List[str]] = {v: [] for v in vars}
+    for arg in func_args:
+        # Function arguments are defined in the beginning.
+        stack[arg] = [arg]
     TOP = -1
 
     # The suffix number for renaming.
-    num = {v: 0 for v in vars}
+    num = {v: 0 for v in stack.keys()}
 
     def fresh_name(v: str, num: Dict[str, int]) -> str:
         """Generates a fresh name for a variable and pushes it onto the stack."""
@@ -187,17 +198,11 @@ def to_ssa() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
     for func in prog["functions"]:
         cfg = ControlFlowGraph(func["instrs"])
-        defs = defsites(cfg)
-        orig = deforig(cfg)
-        # Function arguments are considered to be defined in the entry block.
-        for arg in func.get("args", []):
-            arg_name = arg["name"]
-            defs[arg_name] = defs.get(arg_name, set()).union([cfg.entry])
-            orig[cfg.entry].add(arg_name)
-        vars = list(defs.keys())
+        vars = list(defsites(cfg).keys())
+        func_args = [arg["name"] for arg in func.get("args", [])]
 
-        insert_phi_nodes(cfg, defs, orig, vars)
-        rename_variable(cfg, vars)
+        insert_phi_nodes(cfg, vars, func_args)
+        rename_variable(cfg, vars, func_args)
 
         func["instrs"] = cfg.flatten()
     json.dump(prog, indent=2, fp=sys.stdout)
