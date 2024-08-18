@@ -129,9 +129,16 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
     dtree = dom_tree(cfg)
     # NOTE: A variable is not defined in a path if you access stack[v] and it is empty.
     stack: Dict[str, List[str]] = {v: [] for v in vars}
+    TOP = -1
+
     # The suffix number for renaming.
     num = {v: 0 for v in vars}
-    TOP = -1
+
+    def fresh_name(v: str, num: Dict[str, int]) -> str:
+        """Generates a fresh name for a variable and pushes it onto the stack."""
+        stack[v].append(f"{v}.{num[v]}")
+        num[v] += 1
+        return stack[v][TOP]
 
     def rename_recur(block_name: str) -> None:
         """Recursively renames variables in the dominator tree.
@@ -149,10 +156,8 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
             # Then, rename the destination variable.
             if "dest" in instr:
                 v = instr["dest"]
-                stack[v].append(f"{v}.{num[v]}")
                 rename_count[v] += 1
-                num[v] += 1
-                instr["dest"] = stack[v][TOP]
+                instr["dest"] = fresh_name(v, num)
         # Rename phi-node arguments in successor blocks.
         for succ in map(lambda bn: cfg.blocks[bn], cfg.successors_of(block_name)):
             for p in filter(lambda instr: instr.get("op", "") == "phi", succ):
