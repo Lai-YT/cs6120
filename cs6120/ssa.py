@@ -3,7 +3,8 @@
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional, Set
+from collections import defaultdict
+from typing import Any, DefaultDict, Dict, List, Optional, Set
 
 from cfg import ControlFlowGraph
 from dom import dom_front, dom_tree
@@ -19,13 +20,11 @@ def defsites(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
     Returns:
         A dictionary mapping variable names to the set of block names where they are defined.
     """
-    map: Dict[str, Set[str]] = {}
+    map: DefaultDict[str, Set[str]] = defaultdict(set)
     for block_name, block in cfg.blocks.items():
         for instr in block:
-            if (dest := instr.get("dest", None)) is not None:
-                if dest not in map:
-                    map[dest] = set()
-                map[dest].add(block_name)
+            if "dest" in instr:
+                map[instr["dest"]].add(block_name)
     return map
 
 
@@ -41,8 +40,8 @@ def deforig(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
     map: Dict[str, Set[str]] = {n: set() for n in cfg.block_names}
     for block_name, block in cfg.blocks.items():
         for instr in block:
-            if (dest := instr.get("dest", None)) is not None:
-                map[block_name].add(dest)
+            if "dest" in instr:
+                map[block_name].add(instr["dest"])
     return map
 
 
@@ -95,13 +94,13 @@ def insert_phi_nodes(
     """
     front = dom_front(cfg)
     # Records the destination of phi-nodes that a block has, to avoid adding duplicates.
-    phi: Dict[str, Set[str]] = {}
+    phi: DefaultDict[str, Set[str]] = defaultdict(set)
     for v in vars:
         while defs[v]:
             d = defs[v].pop()
             for f, block in map(lambda f: (f, cfg.blocks[f]), front[d]):
                 # Add a new phi-node for the variable if it doesn't have one.
-                if v not in phi.get(f, set()):
+                if v not in phi[f]:
                     block.insert(
                         0,
                         {
@@ -112,10 +111,7 @@ def insert_phi_nodes(
                             "labels": cfg.predecessors_of(f),
                         },
                     )
-                    if f not in phi:
-                        phi[f] = {v}
-                    else:
-                        phi[f].add(v)
+                    phi[f].add(v)
                     if v not in orig[f]:
                         # This is a new definition of the variable.
                         defs[v].add(f)
@@ -144,7 +140,7 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
             block_name: The name of the current block in the dominator tree.
         """
         # Tracks the number of times a variable is renamed to restore the stack later.
-        rename_count: Dict[str, int] = {}
+        rename_count: DefaultDict[str, int] = defaultdict(int)
         for instr in cfg.blocks[block_name]:
             # First, rename the use of variables in the arguments.
             for i, arg in enumerate(instr.get("args", [])):
@@ -154,7 +150,7 @@ def rename_variable(cfg: ControlFlowGraph, vars: List[str]) -> None:
             if "dest" in instr:
                 v = instr["dest"]
                 stack[v].append(f"{v}.{num[v]}")
-                rename_count[v] = rename_count.get(v, 0) + 1
+                rename_count[v] += 1
                 num[v] += 1
                 instr["dest"] = stack[v][TOP]
         # Rename phi-node arguments in successor blocks.
