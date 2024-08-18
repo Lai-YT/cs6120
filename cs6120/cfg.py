@@ -16,25 +16,52 @@ TERMINATORS = "jmp", "br", "ret"
 
 
 class ControlFlowGraph:
+    """Represents a Control Flow Graph (CFG) for a function.
+
+    This class is responsible for constructing a CFG from a sequence of instructions,
+    identifying the basic blocks, and determining the successor and predecessor relationships
+    between blocks. It also supports flattening the CFG back into a linear sequence of instructions
+    with appropriate labels.
+    """
+
     def __init__(self, func: Iterable[Instr]) -> None:
+        """
+        Args:
+            func: An iterable of instructions representing the function.
+        """
         self._blocks = name_blocks(form_blocks(func))
         self._successors = get_cfg(self._blocks)
         self._predecessors = find_predecessors(self._successors)
         self._add_entry()
 
     def successors_of(self, block: str) -> List[str]:
-        """Returns the block names of the successors."""
+        """Returns the block names of the successors.
+
+        Args:
+            block: The name of the block for which to retrieve successors.
+
+        Returns:
+            A list of block names that are successors of the specified block.
+        """
         return self._successors[block]
 
     def predecessors_of(self, block: str) -> List[str]:
-        """Returns the block names of the predecessors."""
+        """Returns the block names of the predecessors.
+
+        Args:
+            block: The name of the block for which to retrieve predecessors.
+
+        Returns:
+            A list of block names that are predecessors of the specified block.
+        """
         return self._predecessors[block]
 
     def _add_entry(self) -> None:
-        """Adds an entry block that transfers directly to the old entry block if the old entry block has predecessors.
+        """Adds an entry block to the control flow graph.
 
-        This keeps algorithms from being confused by blocks that jump back to the entry node.
-        Predecessors and successors are updated accordingly.
+        If the original entry block has predecessors, a new entry block is added that jumps
+        to the original entry block. This is done to avoid confusion in algorithms that
+        process the CFG.
         """
         if not self._predecessors[self.entry]:
             return
@@ -53,21 +80,26 @@ class ControlFlowGraph:
 
     @property
     def block_names(self) -> List[str]:
+        """List of block names in the control flow graph.
+
+        Returns:
+            A list of block names in the order they appear in the CFG.
+        """
         return list(self._blocks.keys())
 
-    # The return type is a general mapping to prevent user from depending on certain properties.
     @property
     def blocks(self) -> Mapping[str, Block]:
+        """Mapping of block names to blocks."""
         return self._blocks
 
     @property
     def entry(self) -> str:
-        """The name of the entry block."""
+        """Name of the entry block."""
         return self.block_names[0]
 
     @property
     def exit(self) -> str:
-        """The name of the exit block."""
+        """Name of the exit block."""
         return self.block_names[-1]
 
 
