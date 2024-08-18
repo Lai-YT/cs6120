@@ -56,6 +56,27 @@ class ControlFlowGraph:
         """
         return self._predecessors[block]
 
+    def flatten(self) -> List[Instr]:
+        """Flattens the control flow graph back to a sequence of instructions.
+
+        The flattened sequence includes labels indicating the entry points of blocks.
+
+        Returns:
+            A list of instructions representing the flattened control flow graph.
+        """
+        return [i for bn in self.block_names for i in self._flatten_block(bn)]
+
+    def _flatten_block(self, block_name: str) -> List[Instr]:
+        """Flattens a single block to a sequence of instructions.
+
+        Args:
+            block_name: The name of the block to flatten.
+
+        Returns:
+            A list of instructions, including a label for the block entry.
+        """
+        return [{"label": block_name}, *self._blocks[block_name]]
+
     def _add_entry(self) -> None:
         """Adds an entry block to the control flow graph.
 
