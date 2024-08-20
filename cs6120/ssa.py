@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Optional, Set
+from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple
 
 from cfg import ControlFlowGraph
 from dom import dom_front, dom_tree
@@ -202,8 +202,41 @@ def to_ssa() -> None:
     json.dump(prog, indent=2, fp=sys.stdout)
 
 
-def from_ssa():
-    pass
+def from_ssa() -> None:
+    prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
+    for func in prog["functions"]:
+        cfg = ControlFlowGraph(func["instrs"])
+        orig_blocks = cfg.block_names
+        # We may have to add multiple definitions from a single path, so we record them and add them in the end instead of adding them on the fly.
+        # (pred, succ) -> (dest, type, src)
+        defs_to_add: DefaultDict[Tuple[str, str], List[Tuple[str, str, str]]] = (
+            defaultdict(list)
+        )
+        # Collect the definitions to add and remove the phi-nodes.
+        for block in orig_blocks:
+            phi_idx: List[int] = []
+            for i, instr in enumerate(cfg.blocks[block]):
+                if not is_phi(instr):
+                    continue
+                phi_idx.append(i)
+                for pred, arg in zip(instr["labels"], instr["args"]):
+                    defs_to_add[(pred, block)].append(
+                        (instr["dest"], instr["type"], arg)
+                    )
+            # We remove in reverse order so the index are kept.
+            for i in reversed(phi_idx):
+                cfg.blocks[block].pop(i)
+        # Add the definitions. For paths that have the source undefined, we don't add one.
+        for (pred, succ), vals in defs_to_add.items():
+            new_label = f"b.{pred}.{succ}"
+            new_block = [{"label": new_label}] + [
+                {"dest": dst, "type": typ, "op": "id", "args": [src]}
+                for dst, typ, src in vals
+                if not src.endswith(".undef")
+            ]
+            cfg.insert_between(pred, succ, new_block)  # type: ignore
+        func["instrs"] = cfg.flatten()
+    json.dump(prog, indent=2, fp=sys.stdout)
 
 
 CMDS = {

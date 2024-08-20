@@ -1,0 +1,18 @@
+# Check how many more instructions we get after the roundtrip.
+extract = 'total_dyn_inst: (\d+)'
+benchmarks = '../../../benchmarks/core/*.bril'
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "brili -p {args}",
+]
+
+[runs.ssa_roundtrip]
+pipeline = [
+    "bril2json",
+    "../../ssa.py to",
+    "../../ssa.py from",
+    "../../tdce.py",
+    "brili -p {args}",
+]

@@ -32,6 +32,9 @@ class ControlFlowGraph:
         self._blocks = name_blocks(form_blocks(func))
         self._successors = get_cfg(self._blocks)
         self._predecessors = find_predecessors(self._successors)
+        # NOTE: We have to record them first as the order of the blocks may be altered.
+        self._entry = self.block_names[0]
+        self._exit = self.block_names[-1]
         self._add_entry()
 
     def successors_of(self, block: str) -> List[str]:
@@ -66,6 +69,34 @@ class ControlFlowGraph:
         """
         return [i for bn in self.block_names for i in self._flatten_block(bn)]
 
+    def insert_between(self, pred: str, succ: str, new_block: Block):
+        """
+        The new block should start with a label; a jmp instruction is added as the terminator of the new block.
+
+        Raises:
+            ValueError: The arguments aren't predecessor and successor of each other, or a label is missing.
+        """
+        if pred not in self._predecessors[succ] or succ not in self._successors[pred]:
+            raise ValueError
+        if "label" not in new_block[0]:
+            raise ValueError
+        new_block.append({"op": "jmp", "labels": [succ]})
+        # In the cfg, the entry label is removed and used as the name of the block.
+        new_label = new_block.pop(0)["label"]
+        # Update the terminator of the predecessor to jump to the new block.
+        terminator = self._blocks[pred][-1]
+        for i, label in enumerate(terminator["labels"]):
+            if label == succ:
+                terminator["labels"][i] = new_label
+        # NOTE: The new blocks are always added to the end of the blocks.
+        # This should be fine since each of the blocks has a terminator to jump to their actual successors.
+        self._blocks[new_label] = new_block
+        # Udpate the predecessors and successors accordingly.
+        self._predecessors[succ].remove(pred)
+        self._predecessors[succ].append(new_label)
+        self._successors[pred].remove(succ)
+        self._successors[pred].append(new_label)
+
     def _flatten_block(self, block_name: str) -> List[Instr]:
         """Flattens a single block to a sequence of instructions.
 
@@ -84,44 +115,42 @@ class ControlFlowGraph:
         to the original entry block. This is done to avoid confusion in algorithms that
         process the CFG.
         """
-        if not self._predecessors[self.entry]:
+        if not self._predecessors[self._entry]:
             return
         instr: Instr = {
             "op": "jmp",
-            "labels": [self.entry],
+            "labels": [self._entry],
         }
         # FIXME: Possible name conflict.
         blk_name = "entry.1"
         blk: Block = [instr]
         self._predecessors[blk_name] = []
-        self._successors[blk_name] = [self.entry]
-        self._predecessors[self.entry].append(blk_name)
+        self._successors[blk_name] = [self._entry]
+        self._predecessors[self._entry].append(blk_name)
         self._blocks[blk_name] = blk
         self._blocks.move_to_end(blk_name, last=False)
+        # Update the entry.
+        self._entry = blk_name
 
     @property
     def block_names(self) -> List[str]:
-        """List of block names in the control flow graph.
-
-        Returns:
-            A list of block names in the order they appear in the CFG.
-        """
+        """List of block names in the control flow graph."""
         return list(self._blocks.keys())
 
     @property
     def blocks(self) -> Mapping[str, Block]:
-        """Mapping of block names to blocks."""
+        """Mapping of block names to blocks, the order is uncertain."""
         return self._blocks
 
     @property
     def entry(self) -> str:
         """Name of the entry block."""
-        return self.block_names[0]
+        return self._entry
 
     @property
     def exit(self) -> str:
         """Name of the exit block."""
-        return self.block_names[-1]
+        return self._exit
 
 
 def form_blocks(body: Iterable[Instr]) -> Generator[Block, None, None]:
@@ -240,7 +269,8 @@ def get_cfg(name_to_block: typing.OrderedDict[str, Block]) -> Dict[str, List[str
     for i, (name, block) in enumerate(name_to_block.items()):
         last = block[-1]
         if last["op"] in ("jmp", "br"):
-            successor = last["labels"]
+            # NOTE: Create a new list to avoid unexpected aliasing.
+            successor = list(last["labels"])
         elif last["op"] == "ret":
             successor = []
         # fallthrough
