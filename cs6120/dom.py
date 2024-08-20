@@ -15,18 +15,25 @@ def get_dom(cfg: ControlFlowGraph) -> Dict[str, Set[str]]:
     dom: Dict[str, Set[str]] = {b: set(cfg.block_names) for b in cfg.block_names}
     dom[cfg.entry] = {cfg.entry}
     changed = True
+    worklist = cfg.block_names
+    worklist.remove(cfg.entry)  # Entry block has no predecessors.
+
     while changed:
         changed = False
-        for vertex in cfg.block_names:
+        for vertex in worklist:
             new_dom = {vertex}
             try:
                 new_dom |= functools.reduce(
                     operator.and_, (dom[x] for x in cfg.predecessors_of(vertex))
                 )
             except TypeError:
-                # The vertex has no predecessor.
-                # It's the entry block, or it's unreachable.
-                pass
+                # NOTE: Block has no predecessor, thus unreachable.
+                # Keep dominators as all blocks for unreachable blocks to avoid
+                # affecting other blocks. This won't impact finding the
+                # dominance tree or frontiers since those algorithms reassess
+                # predecessors and recognize spurious dominators.
+                continue
+
             if new_dom != dom[vertex]:
                 dom[vertex] = new_dom
                 changed = True
