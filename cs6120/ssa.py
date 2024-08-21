@@ -192,6 +192,7 @@ def to_ssa() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
     for func in prog["functions"]:
         cfg = ControlFlowGraph(func["instrs"])
+        cfg.remove_unreachable_blocks()
         vars = list(defsites(cfg).keys())
         func_args = [arg["name"] for arg in func.get("args", [])]
 
@@ -206,6 +207,8 @@ def from_ssa() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
     for func in prog["functions"]:
         cfg = ControlFlowGraph(func["instrs"])
+        # NOTE: Unreachable blocks affect dominance analysis and may result in undefined identifiers.
+        cfg.remove_unreachable_blocks()
         orig_blocks = cfg.block_names
         # We may have to add multiple definitions from a single path, so we record them and add them in the end instead of adding them on the fly.
         # (pred, succ) -> (dest, type, src)

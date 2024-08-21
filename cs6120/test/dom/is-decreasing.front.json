@@ -3,17 +3,11 @@
 }
 {
   "b0": [],
-  "b1": [
-    "label13"
-  ],
-  "label11": [
-    "label13"
-  ],
+  "label11": [],
   "label12": [
     "label4"
   ],
   "label13": [
-    "label13",
     "label4"
   ],
   "label4": [
@@ -22,9 +16,7 @@
   "label5": [
     "label4"
   ],
-  "label6": [
-    "label13"
-  ]
+  "label6": []
 }
 {
   "b0": []

@@ -169,6 +169,8 @@ def main() -> None:
 
     for func in prog["functions"]:
         cfg = ControlFlowGraph(func["instrs"])
+        # Dominance analyses can be affected by unreachable block.
+        cfg.remove_unreachable_blocks()
         print(
             json.dumps(
                 COMMANDS[args.cmd](cfg),

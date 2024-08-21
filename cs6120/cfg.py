@@ -6,7 +6,7 @@ import json
 import sys
 import typing
 from collections import OrderedDict
-from typing import Any, Dict, Generator, Iterable, List, Mapping
+from typing import Any, Dict, Generator, Iterable, List, Mapping, Set
 
 from type import Block, Instr
 
@@ -96,6 +96,27 @@ class ControlFlowGraph:
         self._predecessors[succ].append(new_label)
         self._successors[pred].remove(succ)
         self._successors[pred].append(new_label)
+
+    def remove_unreachable_blocks(self) -> None:
+        """Removes blocks other then entry block but has no prodecessors.
+
+        These blocks are guaranteed to not be executed at runtime. However, they may affect the correctness of some analysis, one may want to remove them.
+        """
+        worklist = [
+            b for b in self.block_names if not self._predecessors[b] and b != self.entry
+        ]
+        while worklist:
+            b = worklist.pop()
+            for succ in self._successors[b]:
+                # Remove the unreachable block from the predecessor list of its successors.
+                # If this causes those successors to have no predecessors as well,
+                # they will be removed in the future interations.
+                self._predecessors[succ].remove(b)
+                if not self._predecessors[succ]:
+                    worklist.append(succ)
+            del self._blocks[b]
+            del self._predecessors[b]
+            del self._successors[b]
 
     def _flatten_block(self, block_name: str) -> List[Instr]:
         """Flattens a single block to a sequence of instructions.
