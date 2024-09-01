@@ -1,0 +1,16 @@
+@main {
+.b0:
+  cond.0: bool = const true;
+  br cond.0 .true .false;
+.true:
+  a.0: int = const 0;
+  jmp .zexit;
+.false:
+  b.0: int = const 1;
+  jmp .zexit;
+.zexit:
+  b.1: int = phi b.undef b.0 .true .false;
+  a.1: int = phi a.0 a.undef .true .false;
+  print a.1;
+  ret;
+}

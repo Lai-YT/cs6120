@@ -6,31 +6,13 @@ import json
 import sys
 from copy import deepcopy
 from enum import Enum, auto
-from typing import Any, Callable, Dict, Iterable, List, OrderedDict, Set, Tuple, TypeVar
+from typing import Any, Callable, Dict, Iterable, List, Set, Tuple, TypeVar
 
 import cprop
 import defined
 import live
-from cfg import form_blocks, get_cfg, name_blocks
+from cfg import ControlFlowGraph
 from type import Block, Instr
-
-
-def find_predecessors(name2successors: Dict[str, List[str]]) -> Dict[str, List[str]]:
-    """Finds the predecessors of blocks through their successors.
-
-    Args:
-        name2successors: A dictionary mapping block names to their successor block names.
-
-    Returns:
-        A dictionary mapping block names to their predecessor block names.
-    """
-    name2predecessors: Dict[str, List[str]] = {n: list() for n in name2successors}
-    for name, successors in name2successors.items():
-        for this_name in name2predecessors:
-            if this_name in successors:
-                name2predecessors[this_name].append(name)
-    return name2predecessors
-
 
 T = TypeVar("T")
 
@@ -111,37 +93,36 @@ class DataFlowSolver:
                 - IN sets for each block.
                 - OUT sets for each block.
         """
-        # The first block is the entry block.
-        blocks: OrderedDict[str, Block] = name_blocks(form_blocks(instrs))
-        name2successors: Dict[str, List[str]] = get_cfg(blocks)
-        name2predecessors: Dict[str, List[str]] = find_predecessors(name2successors)
+        cfg = ControlFlowGraph(instrs)
+        succs_of: Callable = cfg.successors_of
+        preds_of: Callable = cfg.predecessors_of
 
         if flow is Flow.BACKWARD:
-            entry_name = list(blocks.keys())[-1]
+            entry_name = cfg.exit
         else:
-            entry_name = list(blocks.keys())[0]
+            entry_name = cfg.entry
 
         # in[entry] = init
         ins: Dict[str, T] = {entry_name: deepcopy(init)}
         # out[*] = init
-        outs: Dict[str, T] = {n: deepcopy(init) for n in blocks}
+        outs: Dict[str, T] = {n: deepcopy(init) for n in cfg.block_names}
 
         if flow is Flow.BACKWARD:
-            name2successors, name2predecessors = name2predecessors, name2successors
+            succs_of, preds_of = preds_of, succs_of
 
         # Represent the blocks with their names.
-        worklist: Set[str] = set(blocks.keys())
+        worklist: Set[str] = set(cfg.block_names)
         while worklist:
             # We can pick any block here.
             block_name = worklist.pop()
-            block = blocks[block_name]
+            block = cfg.blocks[block_name]
 
-            in_ = merge([outs[pred] for pred in name2predecessors[block_name]])
+            in_ = merge([outs[pred] for pred in preds_of(block_name)])
             out = transfer(block, in_)
 
             # Until the basic block converges.
             if out != outs[block_name]:
-                worklist.update(name2successors[block_name])
+                worklist.update(succs_of(block_name))
 
             ins[block_name] = in_
             outs[block_name] = out
