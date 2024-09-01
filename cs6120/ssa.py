@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+import copy
 import json
 import sys
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple
 
 from cfg import ControlFlowGraph
@@ -203,6 +204,9 @@ def to_ssa() -> None:
     json.dump(prog, indent=2, fp=sys.stdout)
 
 
+Def = namedtuple("Def", ["dest", "type", "src"])
+
+
 def from_ssa() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
     for func in prog["functions"]:
@@ -212,9 +216,7 @@ def from_ssa() -> None:
         orig_blocks = cfg.block_names
         # We may have to add multiple definitions from a single path, so we record them and add them in the end instead of adding them on the fly.
         # (pred, succ) -> (dest, type, src)
-        defs_to_add: DefaultDict[Tuple[str, str], List[Tuple[str, str, str]]] = (
-            defaultdict(list)
-        )
+        defs_to_add: DefaultDict[Tuple[str, str], List[Def]] = defaultdict(list)
         # Collect the definitions to add and remove the phi-nodes.
         for block in orig_blocks:
             phi_idx: List[int] = []
@@ -223,23 +225,121 @@ def from_ssa() -> None:
                     continue
                 phi_idx.append(i)
                 for pred, arg in zip(instr["labels"], instr["args"]):
+                    # Skip the undefined variables.
+                    if arg.endswith(".undef"):
+                        continue
                     defs_to_add[(pred, block)].append(
-                        (instr["dest"], instr["type"], arg)
+                        Def(instr["dest"], instr["type"], arg)
                     )
             # We remove in reverse order so the index are kept.
             for i in reversed(phi_idx):
                 cfg.blocks[block].pop(i)
-        # Add the definitions. For paths that have the source undefined, we don't add one.
-        for (pred, succ), vals in defs_to_add.items():
+
+        # FIXME: May remove necessary id instructions.
+        remove_circular_id_instrs(defs_to_add)
+
+        # Add the definitions.
+        for (pred, succ), defs in defs_to_add.items():
             new_label = f"b.{pred}.{succ}"
             new_block = [{"label": new_label}] + [
-                {"dest": dst, "type": typ, "op": "id", "args": [src]}
-                for dst, typ, src in vals
-                if not src.endswith(".undef")
+                {"dest": def_.dest, "type": def_.type, "op": "id", "args": [def_.src]}
+                for def_ in defs
             ]
             cfg.insert_between(pred, succ, new_block)  # type: ignore
+
         func["instrs"] = cfg.flatten()
     json.dump(prog, indent=2, fp=sys.stdout)
+
+
+def remove_circular_id_instrs(
+    defs_to_add: DefaultDict[Tuple[str, str], List[Def]]
+) -> None:
+    """Removes id instructions which renames variables between each other."""
+    # To detect circular id instructions, we convert the defs to add in to a directed graph, of which the nodes are the definitions and the edges are the uses.
+    # Since we are no more in SSA form, the variable names are augmented with the block names, (pred, succ) pair.
+    id_graph: Dict[Tuple[Tuple[str, str], str], Set[Tuple[Tuple[str, str], str]]] = {}
+    for pred_succ, defs in defs_to_add.items():
+        for def_ in defs:
+            id_graph[(pred_succ, def_.dest)] = set()
+            for pred_succ_chd, defs_chd in defs_to_add.items():
+                for def_chd in defs_chd:
+                    if (
+                        def_chd.src == def_.dest
+                        # exclude self
+                        and def_chd.dest != def_.dest
+                    ):
+                        id_graph[(pred_succ, def_.dest)].add(
+                            (pred_succ_chd, def_chd.dest)
+                        )
+    # Do DFS to detect circular id instructions.
+    visited: Set[Tuple[Tuple[str, str], str]] = set()
+    # A list of paths that form a cycle.
+    cycles: List[List[Tuple[Tuple[str, str], str]]] = []
+    path: List[Tuple[Tuple[str, str], str]] = []
+
+    def dfs(pred_succ: Tuple[str, str], var: str) -> None:
+        if path and (pred_succ, var) == path[0]:
+            cycles.append(copy.deepcopy(path))
+            return
+        if (pred_succ, var) in visited:
+            return
+        visited.add((pred_succ, var))
+        path.append((pred_succ, var))
+        for pred_succ_chd, var_chd in id_graph[(pred_succ, var)]:
+            dfs(pred_succ_chd, var_chd)
+        path.pop()
+
+    for pred_succ, defs in defs_to_add.items():
+        for def_ in defs:
+            dfs(pred_succ, def_.dest)
+    # Remove the circular id instructions.
+    for cycle in cycles:
+        for pred_succ, var in cycle:
+            try:
+                defs_to_add[pred_succ].remove(
+                    # NOTE: This syntax remove the first element that satisfies the condition.
+                    next(def_ for def_ in defs_to_add[pred_succ] if def_.dest == var)
+                )
+            except StopIteration:
+                # A single definition may participate in multiple cycles.
+                pass
+
+
+def clean_circular_id_instrs(cfg: ControlFlowGraph) -> None:
+    """Removes id instructions which renames variables between each other."""
+    # Record each id instructions and its block.
+    id_instrs: Dict[str, str] = {}
+    for block_name, block in cfg.blocks.items():
+        for instr in block:
+            if instr.get("op") == "id":
+                id_instrs[instr["dest"]] = block_name
+    # Record uses of each variable.
+    uses: Dict[str, List[Instr]] = {v: [] for v in id_instrs.keys()}
+    for block_name, block in cfg.blocks.items():
+        for instr in block:
+            for arg in instr.get("args", []):
+                if arg in uses:
+                    uses[arg].append(instr)
+    to_remove: Set[str] = set()
+    # If the variable is used by another id instruction, and the variable defined by such id instruction is used by the current instruction, they formed a circular dependency and can be removed.
+    for v, instrs in uses.items():
+        # NOTE: Assume that circular dependencies are only between two id instructions.
+        if len(instrs) == 1 and instrs[0].get("op") == "id":
+            dep_instrs = uses[instrs[0]["dest"]]
+            if len(dep_instrs) == 1:
+                dep_instr = dep_instrs[0]
+                if dep_instr.get("op") == "id" and dep_instr["dest"] == v:
+                    to_remove.add(v)
+                    to_remove.add(instrs[0]["dest"])
+
+    for v in to_remove:
+        block_name = id_instrs[v]
+        block = cfg.blocks[block_name]
+        for i, instr in enumerate(block):
+            if instr.get("dest") == v:
+                # NOTE: id instructions can be removed easily because they are not used,
+                # nor do they effect the relations between blocks.
+                block.pop(i)
 
 
 CMDS = {
