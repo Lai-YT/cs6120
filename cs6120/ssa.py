@@ -207,7 +207,7 @@ def to_ssa() -> None:
 Def = namedtuple("Def", ["dest", "type", "src"])
 
 
-def from_ssa() -> None:
+def out_ssa() -> None:
     prog: Dict[str, List[Dict[str, Any]]] = json.load(sys.stdin)
     for func in prog["functions"]:
         cfg = ControlFlowGraph(func["instrs"])
@@ -344,7 +344,7 @@ def clean_circular_id_instrs(cfg: ControlFlowGraph) -> None:
 
 CMDS = {
     "to": to_ssa,
-    "from": from_ssa,
+    "out": out_ssa,
 }
 
 

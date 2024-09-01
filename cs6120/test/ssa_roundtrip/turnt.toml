@@ -1,1 +1,1 @@
-command = "bril2json < {filename} | ../../ssa.py to | ../../ssa.py from | ../../tdce.py | brili {args}"
+command = "bril2json < {filename} | ../../ssa.py to | ../../ssa.py out | ../../tdce.py | brili {args}"

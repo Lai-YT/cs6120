@@ -12,7 +12,7 @@ pipeline = [
 pipeline = [
     "bril2json",
     "../../ssa.py to",
-    "../../ssa.py from",
+    "../../ssa.py out",
     "../../tdce.py",
     "brili -p {args}",
 ]
