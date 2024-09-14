@@ -1,17 +1,19 @@
-# llvm-pass-skeleton
+# llvm-pass
 
-A completely useless LLVM pass.
-It's for LLVM 17.
+Built with LLVM-17.
 
 Build:
 
-    $ cd llvm-pass-skeleton
-    $ mkdir build
-    $ cd build
-    $ cmake ..
-    $ make
-    $ cd ..
+```shell
+mkdir build
+cd build
+LLVM_DIR=$(llvm-config-17 --cmakedir) cmake ..
+make
+cd ..
+```
 
 Run:
 
-    $ clang -fpass-plugin=`echo build/skeleton/SkeletonPass.*` something.c
+```shell
+clang-17 -fpass-plugin="build/pass/<pass>.so" <source>
+```
