@@ -1,0 +1,3 @@
+command = "./{filename}"
+binary = true
+output.txt = "-"
