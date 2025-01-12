@@ -1,1 +1,2 @@
 add_subdirectory(TrivialConstantFolding)
+add_subdirectory(SimpleLoopInvariantCodeMotion)
